@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>KasirKu Online</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.19.1/zxing.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root {
     --bg: #0f1117;
@@ -800,14 +800,7 @@
     <button class="scanner-close" onclick="closeScanner()">✕</button>
   </div>
   <div class="scanner-viewport">
-    <video id="scanner-video" playsinline></video>
-    <div class="scanner-frame">
-      <div class="scanner-line"></div>
-      <div class="scanner-corner-tl"></div>
-      <div class="scanner-corner-tr"></div>
-      <div class="scanner-corner-bl"></div>
-      <div class="scanner-corner-br"></div>
-    </div>
+    <div id="scanner-video" style="width:100%;border-radius:16px;overflow:hidden"></div>
   </div>
   <div class="scanner-hint">Arahkan kamera ke barcode produk</div>
   <div class="scanner-result-box" id="scanner-result-box">
@@ -1336,9 +1329,8 @@ window.editProduct = async function(id) {
 updateRoleUI();
 
 // ============ BARCODE SCANNER ============
-let scannerMode = 'kasir'; // 'kasir' | 'kelola'
-let codeReader = null;
-let scannerStream = null;
+let scannerMode = 'kasir';
+let html5QrCode = null;
 
 window.openScanner = async function(mode) {
   scannerMode = mode;
@@ -1348,33 +1340,17 @@ window.openScanner = async function(mode) {
   document.getElementById('scanner-result-name').textContent = '';
 
   try {
-    // Use ZXing if available, else fallback to BarcodeDetector
-    if (window.ZXing) {
-      codeReader = new ZXing.BrowserMultiFormatReader();
-      await codeReader.decodeFromVideoDevice(null, 'scanner-video', (result, err) => {
-        if (result) handleScanResult(result.getText());
-      });
-    } else if ('BarcodeDetector' in window) {
-      // Native BarcodeDetector API (Chrome/Android)
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      scannerStream = stream;
-      const video = document.getElementById('scanner-video');
-      video.srcObject = stream;
-      video.play();
-      const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code'] });
-      const detect = async () => {
-        if (!document.getElementById('scanner-modal').classList.contains('open')) return;
-        try {
-          const codes = await detector.detect(video);
-          if (codes.length > 0) { handleScanResult(codes[0].rawValue); return; }
-        } catch(e) {}
-        requestAnimationFrame(detect);
-      };
-      video.onloadedmetadata = () => requestAnimationFrame(detect);
-    } else {
-      closeScanner();
-      showToast('❌ Browser tidak mendukung scan barcode. Coba Chrome di Android.', true);
+    if (html5QrCode) {
+      try { await html5QrCode.stop(); } catch(e) {}
+      html5QrCode = null;
     }
+    html5QrCode = new Html5Qrcode('scanner-video');
+    await html5QrCode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 150 } },
+      (decodedText) => { handleScanResult(decodedText); },
+      () => {}
+    );
   } catch(e) {
     closeScanner();
     showToast('❌ Tidak bisa akses kamera: ' + e.message, true);
@@ -1382,27 +1358,32 @@ window.openScanner = async function(mode) {
 };
 
 function handleScanResult(code) {
-  // Tampilkan hasil
+  // Cegah scan ganda
+  if (document.getElementById('scanner-result-code').textContent === code) return;
+
   const resultBox = document.getElementById('scanner-result-box');
   document.getElementById('scanner-result-code').textContent = code;
   resultBox.classList.add('show');
 
   if (scannerMode === 'kasir') {
-    // Cari produk berdasarkan barcode
     const found = products.find(p => p.barcode === code);
     if (found) {
-      document.getElementById('scanner-result-name').textContent = '✅ ' + found.name + ' — ditambahkan ke keranjang!';
+      document.getElementById('scanner-result-name').textContent = '✅ ' + found.name + ' — ditambahkan!';
       document.getElementById('scanner-result-name').style.color = 'var(--green)';
       setTimeout(() => {
         closeScanner();
         if (found.stock <= 0) { showToast('⚠ Stok ' + found.name + ' habis!', true); return; }
         addToCart(found.id);
-        showToast('✅ ' + found.name + ' ditambahkan!');
+        showToast('✅ ' + found.name + ' ditambahkan ke keranjang!');
       }, 800);
     } else {
       document.getElementById('scanner-result-name').textContent = '⚠ Barang tidak ditemukan di database';
       document.getElementById('scanner-result-name').style.color = 'var(--accent2)';
-      setTimeout(closeScanner, 2000);
+      // Reset setelah 2 detik agar bisa scan ulang
+      setTimeout(() => {
+        document.getElementById('scanner-result-box').classList.remove('show');
+        document.getElementById('scanner-result-code').textContent = '';
+      }, 2000);
     }
   } else {
     // Mode kelola — isi field barcode
@@ -1416,12 +1397,12 @@ function handleScanResult(code) {
   }
 }
 
-window.closeScanner = function() {
+window.closeScanner = async function() {
   document.getElementById('scanner-modal').classList.remove('open');
-  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
-  if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
-  const video = document.getElementById('scanner-video');
-  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+  if (html5QrCode) {
+    try { await html5QrCode.stop(); } catch(e) {}
+    html5QrCode = null;
+  }
 };
 </script>
 </body>
