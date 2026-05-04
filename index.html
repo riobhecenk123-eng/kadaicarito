@@ -1758,12 +1758,19 @@ function renderKasbon() {
     const cicilHtml = cicilans.length ? `
       <div class="kasbon-cicilan-list">
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Riwayat pembayaran:</div>
-        ${cicilans.map(c => `<div class="cicilan-item"><span>${c.tgl}</span><span style="color:var(--green)">+${formatRp(c.jumlah)}</span></div>`).join('')}
+        ${cicilans.map((c,i) => `<div class="cicilan-item">
+          <span>${c.tgl}</span>
+          <span style="color:var(--green)">+${formatRp(c.jumlah)}</span>
+          <button onclick="hapusCicilan('${k.id}',${i})" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:11px;padding:0 4px">✕</button>
+        </div>`).join('')}
       </div>` : '';
     return `<div class="kasbon-card ${lunas?'lunas':''}">
       <div class="kasbon-header">
         <div class="kasbon-pelanggan">👤 ${k.nama}</div>
-        <div class="kasbon-badge ${lunas?'lunas':'hutang'}">${lunas?'✅ LUNAS':'⚠ HUTANG'}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="edit-btn" onclick="editKasbon('${k.id}')" style="padding:4px 8px;font-size:12px">✏️</button>
+          <div class="kasbon-badge ${lunas?'lunas':'hutang'}">${lunas?'✅ LUNAS':'⚠ HUTANG'}</div>
+        </div>
       </div>
       <div class="kasbon-detail">${k.keterangan || (k.items ? k.items.map(i=>`${i.emoji||''} ${i.name} ×${i.qty}`).join(', ') : '-')}</div>
       <div class="kasbon-jumlah">${formatRp(k.totalHutang)}</div>
@@ -1850,6 +1857,63 @@ window.lunasKasbon = async function(id) {
   try {
     await updateDoc(doc(db,'kasbon',id), { status:'lunas', sisaHutang:0, cicilan });
     showToast('✅ ' + kb.nama + ' LUNAS!');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
+
+window.editKasbon = async function(id) {
+  const { db, doc, updateDoc } = window._fb;
+  const k = (window._kasbons||[]).find(x => x.id === id);
+  if (!k) return;
+
+  const newNama = prompt('Nama pelanggan:', k.nama);
+  if (newNama === null) return;
+  const newKet = prompt('Keterangan:', k.keterangan || '');
+  if (newKet === null) return;
+  const newTotal = prompt('Total hutang (Rp):', k.totalHutang);
+  if (newTotal === null) return;
+
+  const total = parseInt(newTotal);
+  if (!total || total <= 0) { showToast('⚠ Jumlah tidak valid!', true); return; }
+
+  // Hitung ulang sisa hutang berdasarkan total baru
+  const sudahDibayar = (k.totalHutang || 0) - (k.sisaHutang !== undefined ? k.sisaHutang : k.totalHutang);
+  const sisaBaru = Math.max(0, total - sudahDibayar);
+
+  const updates = {
+    nama: newNama.trim() || k.nama,
+    keterangan: newKet.trim(),
+    totalHutang: total,
+    sisaHutang: sisaBaru,
+    status: sisaBaru <= 0 ? 'lunas' : 'hutang'
+  };
+
+  try {
+    await updateDoc(doc(db, 'kasbon', id), updates);
+    showToast('✅ Kasbon ' + updates.nama + ' diperbarui!');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
+
+window.hapusCicilan = async function(id, index) {
+  const { db, doc, updateDoc } = window._fb;
+  const k = (window._kasbons||[]).find(x => x.id === id);
+  if (!k) return;
+  if (!confirm('Hapus cicilan ini?')) return;
+
+  const cicilan = [...(k.cicilan || [])];
+  const jumlahDihapus = cicilan[index]?.jumlah || 0;
+  cicilan.splice(index, 1);
+
+  // Kembalikan sisa hutang
+  const sisaBaru = (k.sisaHutang !== undefined ? k.sisaHutang : 0) + jumlahDihapus;
+  const sisaFinal = Math.min(sisaBaru, k.totalHutang);
+
+  try {
+    await updateDoc(doc(db, 'kasbon', id), {
+      cicilan,
+      sisaHutang: sisaFinal,
+      status: sisaFinal <= 0 ? 'lunas' : 'hutang'
+    });
+    showToast('🗑 Cicilan dihapus');
   } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
 };
 
