@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>KasirKu Online</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.19.1/zxing.min.js"></script>
 <style>
   :root {
     --bg: #0f1117;
@@ -512,6 +513,76 @@
     border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 16px;
     font-size: 13px; color: var(--blue);
   }
+
+  /* SCANNER MODAL */
+  .scanner-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+    z-index: 600; display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .scanner-overlay.open { display: flex; }
+  .scanner-header {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 20px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .scanner-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; color: white; }
+  .scanner-close {
+    background: rgba(255,255,255,0.15); border: none; color: white;
+    width: 36px; height: 36px; border-radius: 50%; font-size: 18px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .scanner-viewport {
+    width: 100%; max-width: 400px; position: relative;
+  }
+  #scanner-video {
+    width: 100%; border-radius: 16px; display: block;
+  }
+  .scanner-frame {
+    position: absolute; inset: 0;
+    border-radius: 16px; overflow: hidden; pointer-events: none;
+  }
+  .scanner-line {
+    position: absolute; left: 10%; right: 10%; height: 2px;
+    background: var(--accent); box-shadow: 0 0 8px var(--accent);
+    animation: scan-line 2s ease-in-out infinite;
+  }
+  @keyframes scan-line {
+    0% { top: 15%; }
+    50% { top: 80%; }
+    100% { top: 15%; }
+  }
+  .scanner-corners::before, .scanner-corners::after {
+    content: ''; position: absolute; width: 40px; height: 40px;
+    border-color: var(--accent); border-style: solid;
+  }
+  .scanner-corner-tl { position: absolute; top: 10px; left: 10px; width: 40px; height: 40px; border-top: 3px solid var(--accent); border-left: 3px solid var(--accent); border-radius: 4px 0 0 0; }
+  .scanner-corner-tr { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border-top: 3px solid var(--accent); border-right: 3px solid var(--accent); border-radius: 0 4px 0 0; }
+  .scanner-corner-bl { position: absolute; bottom: 10px; left: 10px; width: 40px; height: 40px; border-bottom: 3px solid var(--accent); border-left: 3px solid var(--accent); border-radius: 0 0 0 4px; }
+  .scanner-corner-br { position: absolute; bottom: 10px; right: 10px; width: 40px; height: 40px; border-bottom: 3px solid var(--accent); border-right: 3px solid var(--accent); border-radius: 0 0 4px 0; }
+  .scanner-hint {
+    color: rgba(255,255,255,0.7); font-size: 13px; text-align: center;
+    margin-top: 20px; padding: 0 20px;
+  }
+  .scanner-result-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 20px; margin-top: 16px;
+    width: calc(100% - 40px); max-width: 360px; text-align: center;
+    display: none;
+  }
+  .scanner-result-box.show { display: block; }
+  .scanner-result-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .scanner-result-code { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: var(--accent); }
+  .scanner-result-name { font-size: 13px; color: var(--green); margin-top: 4px; }
+
+  /* SCAN BUTTON */
+  .scan-btn {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,107,53,0.15); border: 1px solid rgba(255,107,53,0.4);
+    color: var(--accent); border-radius: var(--radius-sm); padding: 10px 14px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    font-family: 'Syne', sans-serif; transition: all 0.2s; white-space: nowrap;
+  }
+  .scan-btn:active { transform: scale(0.96); }
 </style>
 </head>
 <body>
@@ -602,6 +673,7 @@
     <div class="search-box">
       <span style="color:var(--muted)">🔍</span>
       <input type="text" id="search-input" placeholder="Cari barang..." oninput="filterProducts()">
+      <button class="scan-btn" onclick="openScanner('kasir')">📷 Scan</button>
     </div>
     <div class="category-scroll" id="category-scroll"></div>
     <div class="products-grid" id="products-grid">
@@ -649,6 +721,13 @@
       <div class="form-row">
         <div class="form-group"><label class="form-label">Emoji / Ikon</label><input type="text" class="form-input" id="new-emoji" placeholder="🍜" maxlength="2"></div>
         <div class="form-group"><label class="form-label">Stok Awal</label><input type="number" class="form-input" id="new-stock" placeholder="0" min="0"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Barcode (opsional)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" class="form-input" id="new-barcode" placeholder="Scan atau ketik barcode...">
+          <button class="scan-btn" onclick="openScanner('kelola')">📷 Scan</button>
+        </div>
       </div>
       <button class="add-product-btn" onclick="addProduct()">+ Tambah Barang</button>
     </div>
@@ -711,6 +790,30 @@
     <div class="pin-error" id="pin-error"></div>
     <button class="pin-submit-btn" onclick="submitPin()">Masuk</button>
     <button class="pin-cancel-btn" onclick="closePinLogin()">Batal</button>
+  </div>
+</div>
+
+<!-- SCANNER MODAL -->
+<div class="scanner-overlay" id="scanner-modal">
+  <div class="scanner-header">
+    <div class="scanner-title">📷 Scan Barcode</div>
+    <button class="scanner-close" onclick="closeScanner()">✕</button>
+  </div>
+  <div class="scanner-viewport">
+    <video id="scanner-video" playsinline></video>
+    <div class="scanner-frame">
+      <div class="scanner-line"></div>
+      <div class="scanner-corner-tl"></div>
+      <div class="scanner-corner-tr"></div>
+      <div class="scanner-corner-bl"></div>
+      <div class="scanner-corner-br"></div>
+    </div>
+  </div>
+  <div class="scanner-hint">Arahkan kamera ke barcode produk</div>
+  <div class="scanner-result-box" id="scanner-result-box">
+    <div class="scanner-result-label">Barcode terdeteksi</div>
+    <div class="scanner-result-code" id="scanner-result-code"></div>
+    <div class="scanner-result-name" id="scanner-result-name"></div>
   </div>
 </div>
 
@@ -1089,7 +1192,7 @@ function renderManage() {
       <span class="manage-emoji">${p.emoji}</span>
       <div class="manage-info">
         <div class="manage-name">${p.name}</div>
-        <div class="manage-meta">${p.cat} · <span style="color:${stockColor}">Stok: ${stock}</span></div>
+        <div class="manage-meta">${p.cat} · <span style="color:${stockColor}">Stok: ${stock}</span>${p.barcode?` · <span style="color:var(--muted);font-size:10px">🔖${p.barcode}</span>`:''}</div>
       </div>
       <span class="manage-price">${formatRp(p.price)}</span>
       ${isAdmin ? `<button class="edit-btn" onclick="editProduct('${p.id}')">✏️</button>` : ''}
@@ -1112,14 +1215,16 @@ window.addProduct = async function() {
   const cat=document.getElementById('new-cat').value;
   const emoji=document.getElementById('new-emoji').value.trim()||EMOJI_MAP[cat]||'📦';
   const stock=parseInt(document.getElementById('new-stock').value)||0;
+  const barcode=document.getElementById('new-barcode').value.trim();
   if(!name){ showToast('⚠ Nama barang wajib diisi!',true); return; }
   if(!price){ showToast('⚠ Harga wajib diisi!',true); return; }
   try {
-    await addDoc(collection(db,'products'), {name,price,cat,emoji,stock});
+    await addDoc(collection(db,'products'), {name,price,cat,emoji,stock,...(barcode?{barcode}:{})});
     document.getElementById('new-name').value='';
     document.getElementById('new-price').value='';
     document.getElementById('new-emoji').value='';
     document.getElementById('new-stock').value='';
+    document.getElementById('new-barcode').value='';
     showToast(`✅ ${name} ditambahkan!`);
   } catch(e){ showToast('❌ Gagal: '+e.message,true); }
 };
@@ -1229,6 +1334,95 @@ window.editProduct = async function(id) {
 
 // Init role UI after app loaded
 updateRoleUI();
+
+// ============ BARCODE SCANNER ============
+let scannerMode = 'kasir'; // 'kasir' | 'kelola'
+let codeReader = null;
+let scannerStream = null;
+
+window.openScanner = async function(mode) {
+  scannerMode = mode;
+  document.getElementById('scanner-modal').classList.add('open');
+  document.getElementById('scanner-result-box').classList.remove('show');
+  document.getElementById('scanner-result-code').textContent = '';
+  document.getElementById('scanner-result-name').textContent = '';
+
+  try {
+    // Use ZXing if available, else fallback to BarcodeDetector
+    if (window.ZXing) {
+      codeReader = new ZXing.BrowserMultiFormatReader();
+      await codeReader.decodeFromVideoDevice(null, 'scanner-video', (result, err) => {
+        if (result) handleScanResult(result.getText());
+      });
+    } else if ('BarcodeDetector' in window) {
+      // Native BarcodeDetector API (Chrome/Android)
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      scannerStream = stream;
+      const video = document.getElementById('scanner-video');
+      video.srcObject = stream;
+      video.play();
+      const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code'] });
+      const detect = async () => {
+        if (!document.getElementById('scanner-modal').classList.contains('open')) return;
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length > 0) { handleScanResult(codes[0].rawValue); return; }
+        } catch(e) {}
+        requestAnimationFrame(detect);
+      };
+      video.onloadedmetadata = () => requestAnimationFrame(detect);
+    } else {
+      closeScanner();
+      showToast('❌ Browser tidak mendukung scan barcode. Coba Chrome di Android.', true);
+    }
+  } catch(e) {
+    closeScanner();
+    showToast('❌ Tidak bisa akses kamera: ' + e.message, true);
+  }
+};
+
+function handleScanResult(code) {
+  // Tampilkan hasil
+  const resultBox = document.getElementById('scanner-result-box');
+  document.getElementById('scanner-result-code').textContent = code;
+  resultBox.classList.add('show');
+
+  if (scannerMode === 'kasir') {
+    // Cari produk berdasarkan barcode
+    const found = products.find(p => p.barcode === code);
+    if (found) {
+      document.getElementById('scanner-result-name').textContent = '✅ ' + found.name + ' — ditambahkan ke keranjang!';
+      document.getElementById('scanner-result-name').style.color = 'var(--green)';
+      setTimeout(() => {
+        closeScanner();
+        if (found.stock <= 0) { showToast('⚠ Stok ' + found.name + ' habis!', true); return; }
+        addToCart(found.id);
+        showToast('✅ ' + found.name + ' ditambahkan!');
+      }, 800);
+    } else {
+      document.getElementById('scanner-result-name').textContent = '⚠ Barang tidak ditemukan di database';
+      document.getElementById('scanner-result-name').style.color = 'var(--accent2)';
+      setTimeout(closeScanner, 2000);
+    }
+  } else {
+    // Mode kelola — isi field barcode
+    document.getElementById('scanner-result-name').textContent = '✅ Barcode siap digunakan';
+    document.getElementById('scanner-result-name').style.color = 'var(--green)';
+    setTimeout(() => {
+      document.getElementById('new-barcode').value = code;
+      closeScanner();
+      showToast('✅ Barcode tersimpan: ' + code);
+    }, 800);
+  }
+}
+
+window.closeScanner = function() {
+  document.getElementById('scanner-modal').classList.remove('open');
+  if (codeReader) { try { codeReader.reset(); } catch(e){} codeReader = null; }
+  if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
+  const video = document.getElementById('scanner-video');
+  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
+};
 </script>
 </body>
 </html>
