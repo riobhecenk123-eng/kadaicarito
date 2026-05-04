@@ -584,6 +584,19 @@
   }
   .scan-btn:active { transform: scale(0.96); }
 
+  /* DATE BAR */
+  .date-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,209,102,0.08); border-bottom: 1px solid rgba(255,209,102,0.2);
+    padding: 8px 16px; cursor: pointer; transition: background 0.2s;
+  }
+  .date-bar:active { background: rgba(255,209,102,0.15); }
+  .date-bar-icon { font-size: 14px; }
+  .date-bar-text { font-size: 13px; font-weight: 700; font-family: 'Syne', sans-serif; color: var(--accent2); flex: 1; }
+  .date-bar-edit { font-size: 11px; color: var(--muted); }
+  .date-bar.modified { background: rgba(255,107,53,0.1); border-bottom-color: rgba(255,107,53,0.3); }
+  .date-bar.modified .date-bar-text { color: var(--accent); }
+
   /* KASBON */
   .kasbon-mode-btn {
     flex: 1; padding: 8px; border-radius: var(--radius-sm); font-size: 12px;
@@ -720,6 +733,12 @@
       <div class="online-badge"><div class="online-dot"></div> Online</div>
       <button class="logout-btn" onclick="disconnect()">Firebase</button>
     </div>
+  </div>
+  <!-- DATE BAR -->
+  <div class="date-bar" id="date-bar" onclick="openDatePicker()">
+    <span class="date-bar-icon">📅</span>
+    <span class="date-bar-text" id="date-bar-text"></span>
+    <span class="date-bar-edit">✏️ Ubah</span>
   </div>
 
   <div class="tabs">
@@ -914,6 +933,20 @@
       <span class="kembalian-val" id="kembalian-val">Rp 0</span>
     </div>
     <button class="konfirmasi-btn" id="konfirmasi-btn" onclick="konfirmasiBayar()" disabled>✅ Konfirmasi Bayar</button>
+  </div>
+</div>
+
+<!-- DATE PICKER MODAL -->
+<div class="pin-modal-overlay" id="date-modal">
+  <div class="pin-modal-box">
+    <div class="pin-title">📅 Ubah Tanggal</div>
+    <div class="pin-sub">Tanggal ini akan dipakai untuk semua transaksi & kasbon baru</div>
+    <input type="date" class="form-input" id="date-picker-input" style="text-align:center;font-size:16px;margin-bottom:8px">
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button class="pin-cancel-btn" style="flex:1" onclick="setDateToday()">📅 Hari Ini</button>
+    </div>
+    <button class="pin-submit-btn" onclick="applyDate()">✅ Pakai Tanggal Ini</button>
+    <button class="pin-cancel-btn" onclick="closeDatePicker()">Batal</button>
   </div>
 </div>
 
@@ -1297,7 +1330,7 @@ window.konfirmasiBayar = async function() {
       items:txItems, total, bayar, kembalian,
       kasir: currentNama || currentRole || 'Tidak diketahui',
       createdAt: serverTimestamp(),
-      timeStr: new Date().toLocaleString('id-ID')
+      timeStr: activeDate.toLocaleString('id-ID')
     });
     // Kurangi stok setiap produk yang terjual
     for (const [id, qty] of Object.entries(cart).filter(([,q])=>q>0)) {
@@ -1630,6 +1663,49 @@ window.editProduct = async function(id) {
 // Init role UI after app loaded
 updateRoleUI();
 
+// ============ TANGGAL AKTIF ============
+let activeDate = new Date(); // default hari ini
+
+function formatTanggal(d) {
+  return d.toLocaleDateString('id-ID', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+function formatDateInput(d) {
+  return d.toISOString().split('T')[0];
+}
+function isToday(d) {
+  const t = new Date();
+  return d.getDate()===t.getDate() && d.getMonth()===t.getMonth() && d.getFullYear()===t.getFullYear();
+}
+function updateDateBar() {
+  const bar = document.getElementById('date-bar');
+  const txt = document.getElementById('date-bar-text');
+  if (!bar || !txt) return;
+  const today = isToday(activeDate);
+  txt.textContent = today ? '📅 ' + formatTanggal(activeDate) + ' (Hari ini)' : '⚠ ' + formatTanggal(activeDate);
+  bar.classList.toggle('modified', !today);
+}
+window.openDatePicker = function() {
+  document.getElementById('date-picker-input').value = formatDateInput(activeDate);
+  document.getElementById('date-modal').classList.add('open');
+};
+window.closeDatePicker = function() {
+  document.getElementById('date-modal').classList.remove('open');
+};
+window.setDateToday = function() {
+  document.getElementById('date-picker-input').value = formatDateInput(new Date());
+};
+window.applyDate = function() {
+  const val = document.getElementById('date-picker-input').value;
+  if (!val) return;
+  activeDate = new Date(val + 'T00:00:00');
+  updateDateBar();
+  closeDatePicker();
+  const today = isToday(activeDate);
+  showToast(today ? '📅 Tanggal dikembalikan ke hari ini' : '⚠ Tanggal diubah ke ' + formatTanggal(activeDate));
+};
+// Init date bar
+updateDateBar();
+
 // ============ KASBON ============
 let kasbonMode = 'barang'; // 'barang' | 'manual'
 
@@ -1733,7 +1809,7 @@ window.tambahKasbon = async function() {
       keterangan, items, status: 'hutang',
       cicilan: [],
       kasir: currentNama || currentRole || '?',
-      timeStr: new Date().toLocaleString('id-ID'),
+      timeStr: activeDate.toLocaleString('id-ID'),
       createdAt: serverTimestamp()
     });
     document.getElementById('kasbon-nama').value = '';
@@ -1754,7 +1830,7 @@ window.bayarCicilan = async function(id, sisa) {
   if (bayar > sisa) { showToast('⚠ Bayar melebihi sisa hutang!', true); return; }
   const kb = (window._kasbons||[]).find(k=>k.id===id);
   if (!kb) return;
-  const cicilan = [...(kb.cicilan||[]), { jumlah: bayar, tgl: new Date().toLocaleDateString('id-ID') }];
+  const cicilan = [...(kb.cicilan||[]), { jumlah: bayar, tgl: activeDate.toLocaleDateString('id-ID') }];
   const sisaBaru = sisa - bayar;
   try {
     await updateDoc(doc(db,'kasbon',id), {
@@ -1770,7 +1846,7 @@ window.lunasKasbon = async function(id) {
   const kb = (window._kasbons||[]).find(k=>k.id===id);
   if (!kb) return;
   if (!confirm('Tandai kasbon ' + kb.nama + ' sebagai LUNAS?')) return;
-  const cicilan = [...(kb.cicilan||[]), { jumlah: kb.sisaHutang, tgl: new Date().toLocaleDateString('id-ID') }];
+  const cicilan = [...(kb.cicilan||[]), { jumlah: kb.sisaHutang, tgl: activeDate.toLocaleDateString('id-ID') }];
   try {
     await updateDoc(doc(db,'kasbon',id), { status:'lunas', sisaHutang:0, cicilan });
     showToast('✅ ' + kb.nama + ' LUNAS!');
