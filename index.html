@@ -1357,7 +1357,7 @@ window.openScanner = async function(mode) {
   }
 };
 
-function handleScanResult(code) {
+async function handleScanResult(code) {
   // Cegah scan ganda
   if (document.getElementById('scanner-result-code').textContent === code) return;
 
