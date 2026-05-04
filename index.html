@@ -1383,71 +1383,115 @@ window.scannerClose = function() {
 // Alias untuk backward compat
 window.closeScanner = window.scannerClose;
 
+// ============ BEEP SOUND ============
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  } catch(e) {}
+}
+
 async function onBarcodeScanned(code) {
   code = code.trim();
 
-  // Tutup scanner
-  document.getElementById('scanner-modal').classList.remove('open');
-  if (_qrScanner) { _qrScanner.clear().catch(()=>{}); _qrScanner = null; }
+  // Bunyi beep!
+  playBeep();
 
   if (_scanMode === 'kasir') {
-    // --- MODE KASIR: cari barang di products ---
+    // Tampilkan hasil di scanner dulu sebelum tutup
     const found = products.find(p => p.barcode && p.barcode.trim() === code);
+    document.getElementById('scanner-result-code').textContent = code;
+    document.getElementById('scanner-result-box').classList.add('show');
+
     if (found) {
-      if ((found.stock || 0) <= 0) {
-        showToast('⚠ Stok ' + found.name + ' habis!', true);
-      } else {
-        addToCart(found.id);
-        showToast('✅ ' + found.name + ' ditambahkan!');
-      }
+      document.getElementById('scanner-result-name').textContent = '✅ ' + found.name;
+      document.getElementById('scanner-result-name').style.color = 'var(--green)';
+      // Tutup scanner setelah 800ms biar user sempat lihat
+      setTimeout(async () => {
+        document.getElementById('scanner-modal').classList.remove('open');
+        if (_qrScanner) { _qrScanner.clear().catch(()=>{}); _qrScanner = null; }
+        if ((found.stock || 0) <= 0) {
+          showToast('⚠ Stok ' + found.name + ' habis!', true);
+        } else {
+          addToCart(found.id);
+          showToast('✅ ' + found.name + ' ditambahkan!');
+        }
+      }, 800);
     } else {
-      showToast('⚠ Barcode ' + code + ' belum ada di database. Tambah dulu di Kelola.', true);
+      document.getElementById('scanner-result-name').textContent = '⚠ Barang belum ada di database';
+      document.getElementById('scanner-result-name').style.color = 'var(--accent2)';
+      // Biarkan scan ulang setelah 2 detik
+      setTimeout(() => {
+        document.getElementById('scanner-result-box').classList.remove('show');
+        _scanDone = false;
+      }, 2000);
     }
 
   } else {
-    // --- MODE KELOLA: isi form tambah barang ---
-    // 1. Isi barcode
-    document.getElementById('new-barcode').value = code;
+    // --- MODE KELOLA ---
+    // Tampilkan "mencari..." di scanner
+    document.getElementById('scanner-result-code').textContent = code;
+    document.getElementById('scanner-result-name').textContent = '🔍 Mencari info produk...';
+    document.getElementById('scanner-result-name').style.color = 'var(--muted)';
+    document.getElementById('scanner-result-box').classList.add('show');
 
-    // 2. Scroll ke form
-    document.getElementById('add-product-form').scrollIntoView({ behavior: 'smooth' });
-
-    showToast('🔍 Barcode: ' + code + ' — mencari info produk...');
-
-    // 3. Fetch dari Open Food Facts
+    // Fetch info produk dari Open Food Facts
+    let nama = '';
+    let cat = 'Lainnya';
     try {
       const res = await fetch('https://world.openfoodfacts.org/api/v0/product/' + code + '.json');
       const data = await res.json();
-
       if (data.status === 1 && data.product) {
         const prod = data.product;
-        const nama = (prod.product_name_id || prod.product_name || prod.abbreviated_product_name || prod.brands || '').trim();
+        nama = (prod.product_name_id || prod.product_name || prod.abbreviated_product_name || prod.brands || '').trim();
         const catStr = ((prod.categories || '') + ' ' + (prod.food_groups || '')).toLowerCase();
-
-        let cat = 'Lainnya';
         if (/beverage|minuman|drink|water|juice|teh|kopi|susu|soda/.test(catStr)) cat = 'Minuman';
         else if (/snack|chip|wafer|biscuit|biskuit|cookie|keripik|cracker/.test(catStr)) cat = 'Snack';
         else if (/noodle|mie|pasta|bread|roti|makanan|food|meal|rice/.test(catStr)) cat = 'Makanan';
         else if (/sugar|gula|oil|minyak|beras|telur|egg|sembako/.test(catStr)) cat = 'Sembako';
-
-        const emojiMap = { Minuman:'🥤', Snack:'🍿', Makanan:'🍜', Sembako:'🛒', Rokok:'🚬', Lainnya:'📦' };
-
-        // Isi form
-        if (nama) document.getElementById('new-name').value = nama;
-        document.getElementById('new-cat').value = cat;
-        document.getElementById('new-emoji').value = emojiMap[cat] || '📦';
-
-        if (nama) {
-          showToast('✅ Ditemukan: ' + nama + ' — lengkapi harga & stok!');
-        } else {
-          showToast('⚠ Barcode tersimpan. Isi nama produk manual ya.', true);
-        }
-      } else {
-        showToast('⚠ Produk tidak ada di database online. Isi nama manual ya.', true);
       }
-    } catch(e) {
-      showToast('⚠ Barcode tersimpan: ' + code + '. Isi nama manual ya.', true);
+    } catch(e) {}
+
+    // Tampilkan nama di scanner
+    if (nama) {
+      document.getElementById('scanner-result-name').textContent = '✅ ' + nama;
+      document.getElementById('scanner-result-name').style.color = 'var(--green)';
+    } else {
+      document.getElementById('scanner-result-name').textContent = '⚠ Tidak ditemukan online — isi nama manual';
+      document.getElementById('scanner-result-name').style.color = 'var(--accent2)';
     }
+
+    // Tutup scanner setelah 1.2 detik lalu isi form
+    setTimeout(() => {
+      document.getElementById('scanner-modal').classList.remove('open');
+      if (_qrScanner) { _qrScanner.clear().catch(()=>{}); _qrScanner = null; }
+
+      // Isi semua field form
+      document.getElementById('new-barcode').value = code;
+      if (nama) document.getElementById('new-name').value = nama;
+      document.getElementById('new-cat').value = cat;
+      const emojiMap = { Minuman:'🥤', Snack:'🍿', Makanan:'🍜', Sembako:'🛒', Rokok:'🚬', Lainnya:'📦' };
+      document.getElementById('new-emoji').value = emojiMap[cat] || '📦';
+
+      // Scroll ke form & fokus ke field harga
+      document.getElementById('add-product-form').scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => document.getElementById('new-price').focus(), 400);
+
+      if (nama) {
+        showToast('✅ ' + nama + ' — isi harga & stok!');
+      } else {
+        showToast('⚠ Barcode tersimpan. Isi nama & harga manual ya.', true);
+      }
+    }, 1200);
   }
 }
 </script>
