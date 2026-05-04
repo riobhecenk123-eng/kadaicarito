@@ -669,7 +669,7 @@
 <!-- APP -->
 <div id="app">
   <div class="header">
-    <div class="logo">Kasir<span>Ku</span></div>
+    <div class="logo" id="app-logo">Kasir<span>Ku</span></div>
     <div style="display:flex;gap:8px;align-items:center">
       <div class="role-badge" id="role-badge"></div>
       <button class="role-login-btn" id="role-login-btn" onclick="showPinLogin()">🔐 Login</button>
@@ -753,6 +753,21 @@
 
     <!-- SECTION KELOLA PENGGUNA (ADMIN ONLY) -->
     <div id="manage-users-section" style="display:none;margin-top:24px">
+      <div class="sep"></div>
+
+      <!-- GANTI NAMA WEBSITE -->
+      <div class="section-title" style="margin-bottom:14px">🏪 Nama Toko / Website</div>
+      <div style="background:var(--card);border-radius:var(--radius-sm);padding:16px;border:1px solid var(--border);margin-bottom:20px">
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Nama Toko</label>
+            <input type="text" class="form-input" id="site-name-input" placeholder="Contoh: Kadai Carito">
+          </div>
+          <button class="add-product-btn" style="margin-bottom:0;white-space:nowrap" onclick="saveSiteName()">💾 Simpan</button>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">Nama ini akan tampil di header dan judul halaman.</div>
+      </div>
+
       <div class="sep"></div>
       <div class="section-title" style="margin-bottom:14px">👥 Kelola Pengguna</div>
       <div id="users-list"></div>
@@ -854,7 +869,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, collection, doc, addDoc, getDocs,
-  deleteDoc, onSnapshot, orderBy, query, serverTimestamp, writeBatch, updateDoc, increment
+  deleteDoc, onSnapshot, orderBy, query, serverTimestamp, writeBatch, updateDoc, increment, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ============ GLOBALS ============
@@ -960,6 +975,7 @@ async function initApp(cfg) {
     window._fb.writeBatch = writeBatch;
     window._fb.updateDoc = updateDoc;
     window._fb.increment = increment;
+    window._fb.setDoc = setDoc;
 
     // Check + seed products
     const snap = await getDocs(collection(db, 'products'));
@@ -989,6 +1005,17 @@ async function initApp(cfg) {
     onSnapshot(collection(db, 'users'), snap => {
       window._users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       renderUsers();
+    });
+
+    // Listen settings realtime (nama toko dll)
+    onSnapshot(doc(db, 'settings', 'app'), snap => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.siteName) applySiteName(data.siteName);
+        // Pre-fill input kalau admin
+        const inp = document.getElementById('site-name-input');
+        if (inp) inp.value = data.siteName || '';
+      }
     });
 
     // Listen products realtime
@@ -1333,6 +1360,33 @@ window.editUser = async function(id) {
       updateRoleUI();
     }
     showToast('✅ Data ' + (updates.nama || u.nama) + ' diperbarui!');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
+
+// ============ NAMA TOKO / WEBSITE ============
+function applySiteName(name) {
+  if (!name) return;
+  // Update header logo
+  const logo = document.getElementById('app-logo');
+  if (logo) {
+    // Pisah jadi dua bagian — huruf pertama normal, sisanya berwarna
+    const half = Math.ceil(name.length / 2);
+    const part1 = name.slice(0, half);
+    const part2 = name.slice(half);
+    logo.innerHTML = part1 + '<span>' + part2 + '</span>';
+  }
+  // Update title browser
+  document.title = name;
+}
+
+window.saveSiteName = async function() {
+  if (currentRole !== 'admin') return;
+  const { db, doc, updateDoc, setDoc } = window._fb;
+  const name = document.getElementById('site-name-input').value.trim();
+  if (!name) { showToast('⚠ Nama toko tidak boleh kosong!', true); return; }
+  try {
+    await setDoc(doc(db, 'settings', 'app'), { siteName: name }, { merge: true });
+    showToast('✅ Nama toko diubah ke "' + name + '"!');
   } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
 };
 
