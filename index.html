@@ -750,6 +750,14 @@
 
   <!-- KASIR -->
   <div class="page active" id="page-kasir">
+    <!-- Login required banner -->
+    <div id="login-required-banner" style="display:none;align-items:center;gap:10px;background:rgba(255,107,53,0.1);border:1px solid rgba(255,107,53,0.3);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:12px;cursor:pointer" onclick="showPinLogin()">
+      <span style="font-size:20px">🔐</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;font-family:'Syne',sans-serif;color:var(--accent)">Login diperlukan</div>
+        <div style="font-size:11px;color:var(--muted)">Tap di sini untuk login sebelum transaksi</div>
+      </div>
+    </div>
     <div class="search-box">
       <span style="color:var(--muted)">🔍</span>
       <input type="text" id="search-input" placeholder="Cari barang..." oninput="filterProducts()">
@@ -1179,7 +1187,17 @@ window.disconnect = function() {
   location.reload();
 };
 
-// ============ TABS ============
+// ============ REQUIRE LOGIN ============
+function requireLogin() {
+  if (!currentRole) {
+    showToast('🔐 Login dulu untuk melakukan ini!', true);
+    setTimeout(() => showPinLogin(), 500);
+    return false;
+  }
+  return true;
+}
+
+
 window.switchTab = function(tab) {
   const tabs = ['kasir','riwayat','kasbon','kelola'];
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', tabs[i] === tab));
@@ -1204,6 +1222,11 @@ function renderProducts() {
     p.name.toLowerCase().includes(searchQuery)
   );
   const grid = document.getElementById('products-grid');
+
+  // Tampilkan banner login jika belum login
+  const loginBanner = document.getElementById('login-required-banner');
+  if (loginBanner) loginBanner.style.display = !currentRole ? 'flex' : 'none';
+
   if (filtered.length === 0) {
     grid.innerHTML = `<div style="grid-column:span 2;text-align:center;padding:40px 0;color:var(--muted)"><div style="font-size:36px;margin-bottom:10px">😕</div><div>Barang tidak ditemukan</div></div>`;
     return;
@@ -1225,6 +1248,7 @@ function renderProducts() {
 
 // ============ CART ============
 window.addToCart = function(id) {
+  if (!requireLogin()) return;
   const p = products.find(x=>x.id===id);
   if (!p) return;
   const stock = p.stock !== undefined ? p.stock : 999;
@@ -1295,6 +1319,7 @@ window.changeQty = function(id, delta) {
 
 // ============ BAYAR ============
 window.openBayarModal = function() {
+  if (!requireLogin()) return;
   closeCartModal();
   document.getElementById('modal-total-display').textContent = formatRp(getCartTotal());
   document.getElementById('bayar-input').value='';
@@ -1316,6 +1341,7 @@ window.hitungKembalian = function() {
 };
 
 window.konfirmasiBayar = async function() {
+  if (!requireLogin()) return;
   const { db, collection, addDoc, serverTimestamp, doc, updateDoc, increment } = window._fb;
   const total=getCartTotal(), bayar=parseInt(document.getElementById('bayar-input').value)||0;
   const kembalian=bayar-total;
@@ -1638,6 +1664,9 @@ function updateRoleUI() {
     badge.style.display='none';
     loginBtn.style.display='block'; logoutBtn.style.display='none';
   }
+  // Update login banner & manage visibility
+  const banner = document.getElementById('login-required-banner');
+  if (banner) banner.style.display = !currentRole ? 'flex' : 'none';
 }
 
 // ============ EDIT PRODUCT (Admin only) ============
@@ -1789,6 +1818,7 @@ function renderKasbon() {
 }
 
 window.tambahKasbon = async function() {
+  if (!requireLogin()) return;
   const { db, collection, addDoc, serverTimestamp } = window._fb;
   const nama = document.getElementById('kasbon-nama').value.trim();
   if (!nama) { showToast('⚠ Nama pelanggan wajib diisi!', true); return; }
@@ -1829,6 +1859,7 @@ window.tambahKasbon = async function() {
 };
 
 window.bayarCicilan = async function(id, sisa) {
+  if (!requireLogin()) return;
   const { db, doc, updateDoc } = window._fb;
   const jml = prompt('Jumlah cicilan yang dibayar (Sisa: ' + formatRp(sisa) + '):', sisa);
   if (!jml) return;
@@ -1849,6 +1880,7 @@ window.bayarCicilan = async function(id, sisa) {
 };
 
 window.lunasKasbon = async function(id) {
+  if (!requireLogin()) return;
   const { db, doc, updateDoc } = window._fb;
   const kb = (window._kasbons||[]).find(k=>k.id===id);
   if (!kb) return;
@@ -1861,6 +1893,7 @@ window.lunasKasbon = async function(id) {
 };
 
 window.editKasbon = async function(id) {
+  if (!requireLogin()) return;
   const { db, doc, updateDoc } = window._fb;
   const k = (window._kasbons||[]).find(x => x.id === id);
   if (!k) return;
@@ -1894,6 +1927,7 @@ window.editKasbon = async function(id) {
 };
 
 window.hapusCicilan = async function(id, index) {
+  if (!requireLogin()) return;
   const { db, doc, updateDoc } = window._fb;
   const k = (window._kasbons||[]).find(x => x.id === id);
   if (!k) return;
@@ -1918,6 +1952,7 @@ window.hapusCicilan = async function(id, index) {
 };
 
 window.hapusKasbon = async function(id, nama) {
+  if (!requireLogin()) return;
   const { db, doc, deleteDoc } = window._fb;
   if (!confirm('Hapus kasbon ' + nama + '?')) return;
   try {
@@ -1932,6 +1967,7 @@ let _qrScanner = null;
 let _scanDone = false;
 
 window.openScanner = function(mode) {
+  if (!requireLogin()) return;
   _scanMode = mode;
   _scanDone = false;
   document.getElementById('scanner-result-box').classList.remove('show');
