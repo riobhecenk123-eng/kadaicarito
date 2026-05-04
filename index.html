@@ -584,6 +584,49 @@
   }
   .scan-btn:active { transform: scale(0.96); }
 
+  /* KASBON */
+  .kasbon-mode-btn {
+    flex: 1; padding: 8px; border-radius: var(--radius-sm); font-size: 12px;
+    font-weight: 700; font-family: 'Syne', sans-serif; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+    transition: all 0.2s;
+  }
+  .kasbon-mode-btn.active { background: rgba(255,107,53,0.15); border-color: var(--accent); color: var(--accent); }
+  .kasbon-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px; margin-bottom: 10px;
+  }
+  .kasbon-card.lunas { opacity: 0.5; border-color: var(--green); }
+  .kasbon-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .kasbon-pelanggan { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px; }
+  .kasbon-badge {
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+    font-family: 'Syne', sans-serif; letter-spacing: 0.5px;
+  }
+  .kasbon-badge.hutang { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+  .kasbon-badge.lunas { background: rgba(6,214,106,0.15); color: var(--green); border: 1px solid rgba(6,214,106,0.3); }
+  .kasbon-detail { font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.6; }
+  .kasbon-jumlah { font-size: 20px; font-weight: 800; font-family: 'Syne', sans-serif; color: var(--danger); margin-bottom: 4px; }
+  .kasbon-sisa { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .kasbon-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .kasbon-bayar-btn {
+    flex: 1; padding: 9px; background: rgba(6,214,106,0.15); border: 1px solid rgba(6,214,106,0.3);
+    color: var(--green); border-radius: var(--radius-sm); font-size: 12px; font-weight: 700;
+    cursor: pointer; font-family: 'Syne', sans-serif; min-width: 100px;
+  }
+  .kasbon-lunas-btn {
+    padding: 9px 14px; background: var(--green); border: none;
+    color: white; border-radius: var(--radius-sm); font-size: 12px; font-weight: 700;
+    cursor: pointer; font-family: 'Syne', sans-serif;
+  }
+  .kasbon-hapus-btn {
+    padding: 9px 12px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+    color: var(--danger); border-radius: var(--radius-sm); font-size: 12px;
+    cursor: pointer; font-family: 'Syne', sans-serif;
+  }
+  .kasbon-cicilan-list { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
+  .cicilan-item { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); padding: 2px 0; }
+
   /* USER CARD */
   .user-card {
     display: flex; align-items: center; gap: 12px;
@@ -682,6 +725,7 @@
   <div class="tabs">
     <div class="tab active" onclick="switchTab('kasir')"><span class="tab-icon">🛒</span>Kasir</div>
     <div class="tab" onclick="switchTab('riwayat')"><span class="tab-icon">📋</span>Riwayat</div>
+    <div class="tab" onclick="switchTab('kasbon')"><span class="tab-icon">📒</span>Kasbon</div>
     <div class="tab" onclick="switchTab('kelola')"><span class="tab-icon">⚙️</span>Kelola</div>
   </div>
 
@@ -711,6 +755,45 @@
     </div>
     <div class="section-title">Riwayat Transaksi <button class="clear-btn" onclick="clearHistory()">Hapus Semua</button></div>
     <div id="history-list"><div class="no-history"><span>📋</span>Belum ada transaksi</div></div>
+  </div>
+
+  <!-- KASBON -->
+  <div class="page" id="page-kasbon">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Hutang</div><div class="stat-value" style="color:var(--danger)" id="kasbon-total">Rp 0</div></div>
+      <div class="stat-card"><div class="stat-label">Pelanggan</div><div class="stat-value accent" id="kasbon-count">0</div></div>
+    </div>
+
+    <!-- FORM TAMBAH KASBON -->
+    <div class="section-title" style="margin-bottom:14px">+ Tambah Kasbon</div>
+    <div style="background:var(--card);border-radius:var(--radius-sm);padding:16px;border:1px solid var(--border);margin-bottom:20px">
+      <div class="form-group"><label class="form-label">Nama Pelanggan</label>
+        <input type="text" class="form-input" id="kasbon-nama" placeholder="Contoh: Pak Budi">
+      </div>
+      <div id="kasbon-mode-tabs" style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="kasbon-mode-btn active" id="kmode-barang" onclick="setKasbonMode('barang')">🛒 Dari Keranjang</button>
+        <button class="kasbon-mode-btn" id="kmode-manual" onclick="setKasbonMode('manual')">✏️ Input Manual</button>
+      </div>
+      <!-- Mode: dari keranjang -->
+      <div id="kasbon-from-cart">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Isi keranjang di tab Kasir dulu, lalu kasbon di sini.</div>
+        <div id="kasbon-cart-preview" style="font-size:13px;color:var(--text);margin-bottom:8px"></div>
+      </div>
+      <!-- Mode: manual -->
+      <div id="kasbon-manual-form" style="display:none">
+        <div class="form-group"><label class="form-label">Jumlah Hutang (Rp)</label>
+          <input type="number" class="form-input" id="kasbon-jumlah" placeholder="50000">
+        </div>
+        <div class="form-group"><label class="form-label">Keterangan (opsional)</label>
+          <input type="text" class="form-input" id="kasbon-ket" placeholder="Contoh: Beli rokok, mie">
+        </div>
+      </div>
+      <button class="add-product-btn" onclick="tambahKasbon()">📒 Simpan Kasbon</button>
+    </div>
+
+    <!-- DAFTAR KASBON -->
+    <div class="section-title">Daftar Kasbon</div>
+    <div id="kasbon-list"><div style="text-align:center;padding:30px;color:var(--muted)">📒 Belum ada kasbon</div></div>
   </div>
 
   <!-- KELOLA -->
@@ -1033,6 +1116,13 @@ async function initApp(cfg) {
       renderHistory();
     });
 
+    // Listen kasbon realtime
+    const kbQuery = query(collection(db, 'kasbon'), orderBy('createdAt', 'desc'));
+    onSnapshot(kbQuery, snap => {
+      window._kasbons = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderKasbon();
+    });
+
     hideLoading();
     showApp();
   } catch(e) {
@@ -1058,8 +1148,10 @@ window.disconnect = function() {
 
 // ============ TABS ============
 window.switchTab = function(tab) {
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['kasir','riwayat','kelola'][i] === tab));
+  const tabs = ['kasir','riwayat','kasbon','kelola'];
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', tabs[i] === tab));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+tab));
+  if (tab === 'kasbon') renderKasbon();
 };
 
 // ============ CATEGORIES ============
@@ -1537,6 +1629,162 @@ window.editProduct = async function(id) {
 
 // Init role UI after app loaded
 updateRoleUI();
+
+// ============ KASBON ============
+let kasbonMode = 'barang'; // 'barang' | 'manual'
+
+window.setKasbonMode = function(mode) {
+  kasbonMode = mode;
+  document.getElementById('kmode-barang').classList.toggle('active', mode === 'barang');
+  document.getElementById('kmode-manual').classList.toggle('active', mode === 'manual');
+  document.getElementById('kasbon-from-cart').style.display = mode === 'barang' ? 'block' : 'none';
+  document.getElementById('kasbon-manual-form').style.display = mode === 'manual' ? 'block' : 'none';
+  if (mode === 'barang') updateKasbonCartPreview();
+};
+
+function updateKasbonCartPreview() {
+  const items = Object.entries(cart).filter(([,q])=>q>0);
+  const prev = document.getElementById('kasbon-cart-preview');
+  if (!prev) return;
+  if (!items.length) {
+    prev.innerHTML = '<span style="color:var(--muted)">Keranjang kosong.</span>';
+    return;
+  }
+  const total = getCartTotal();
+  prev.innerHTML = items.map(([id,qty]) => {
+    const p = products.find(x=>x.id===id);
+    return p ? `• ${p.emoji} ${p.name} ×${qty} = ${formatRp(p.price*qty)}` : '';
+  }).join('<br>') + `<br><b style="color:var(--danger)">Total: ${formatRp(total)}</b>`;
+}
+
+function renderKasbon() {
+  const list = document.getElementById('kasbon-list');
+  if (!list) return;
+  const kasbons = window._kasbons || [];
+
+  // Update stats
+  const aktif = kasbons.filter(k => k.status !== 'lunas');
+  const totalHutang = aktif.reduce((s,k) => s + (k.sisaHutang || k.totalHutang || 0), 0);
+  const el = document.getElementById('kasbon-total');
+  const elc = document.getElementById('kasbon-count');
+  if (el) el.textContent = formatRp(totalHutang);
+  if (elc) elc.textContent = aktif.length;
+
+  if (!kasbons.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">📒 Belum ada kasbon</div>';
+    return;
+  }
+
+  list.innerHTML = kasbons.map(k => {
+    const lunas = k.status === 'lunas';
+    const sisa = k.sisaHutang !== undefined ? k.sisaHutang : k.totalHutang;
+    const cicilans = k.cicilan || [];
+    const cicilHtml = cicilans.length ? `
+      <div class="kasbon-cicilan-list">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Riwayat pembayaran:</div>
+        ${cicilans.map(c => `<div class="cicilan-item"><span>${c.tgl}</span><span style="color:var(--green)">+${formatRp(c.jumlah)}</span></div>`).join('')}
+      </div>` : '';
+    return `<div class="kasbon-card ${lunas?'lunas':''}">
+      <div class="kasbon-header">
+        <div class="kasbon-pelanggan">👤 ${k.nama}</div>
+        <div class="kasbon-badge ${lunas?'lunas':'hutang'}">${lunas?'✅ LUNAS':'⚠ HUTANG'}</div>
+      </div>
+      <div class="kasbon-detail">${k.keterangan || (k.items ? k.items.map(i=>`${i.emoji||''} ${i.name} ×${i.qty}`).join(', ') : '-')}</div>
+      <div class="kasbon-jumlah">${formatRp(k.totalHutang)}</div>
+      <div class="kasbon-sisa">${lunas ? '✅ Sudah lunas' : `Sisa: <b style="color:var(--danger)">${formatRp(sisa)}</b> · Dibayar: ${formatRp(k.totalHutang - sisa)}`}</div>
+      ${cicilHtml}
+      ${!lunas ? `<div class="kasbon-actions">
+        <button class="kasbon-bayar-btn" onclick="bayarCicilan('${k.id}',${sisa})">💵 Bayar Cicilan</button>
+        <button class="kasbon-lunas-btn" onclick="lunasKasbon('${k.id}')">✅ Lunas</button>
+        <button class="kasbon-hapus-btn" onclick="hapusKasbon('${k.id}','${k.nama}')">🗑</button>
+      </div>` : `<div class="kasbon-actions">
+        <button class="kasbon-hapus-btn" onclick="hapusKasbon('${k.id}','${k.nama}')">🗑 Hapus</button>
+      </div>`}
+      <div style="font-size:10px;color:var(--muted);margin-top:8px">Dicatat oleh ${k.kasir||'?'} · ${k.timeStr||''}</div>
+    </div>`;
+  }).join('');
+}
+
+window.tambahKasbon = async function() {
+  const { db, collection, addDoc, serverTimestamp } = window._fb;
+  const nama = document.getElementById('kasbon-nama').value.trim();
+  if (!nama) { showToast('⚠ Nama pelanggan wajib diisi!', true); return; }
+
+  let totalHutang = 0, keterangan = '', items = [];
+
+  if (kasbonMode === 'barang') {
+    const cartItems = Object.entries(cart).filter(([,q])=>q>0);
+    if (!cartItems.length) { showToast('⚠ Keranjang kosong! Isi dulu di tab Kasir.', true); return; }
+    items = cartItems.map(([id,qty]) => {
+      const p = products.find(x=>x.id===id);
+      return { name: p.name, emoji: p.emoji, qty, price: p.price, subtotal: p.price*qty };
+    });
+    totalHutang = getCartTotal();
+    keterangan = items.map(i=>`${i.emoji} ${i.name} ×${i.qty}`).join(', ');
+  } else {
+    totalHutang = parseInt(document.getElementById('kasbon-jumlah').value) || 0;
+    keterangan = document.getElementById('kasbon-ket').value.trim();
+    if (!totalHutang) { showToast('⚠ Jumlah hutang wajib diisi!', true); return; }
+  }
+
+  try {
+    await addDoc(collection(db, 'kasbon'), {
+      nama, totalHutang, sisaHutang: totalHutang,
+      keterangan, items, status: 'hutang',
+      cicilan: [],
+      kasir: currentNama || currentRole || '?',
+      timeStr: new Date().toLocaleString('id-ID'),
+      createdAt: serverTimestamp()
+    });
+    document.getElementById('kasbon-nama').value = '';
+    document.getElementById('kasbon-jumlah') && (document.getElementById('kasbon-jumlah').value = '');
+    document.getElementById('kasbon-ket') && (document.getElementById('kasbon-ket').value = '');
+    // Kosongkan keranjang kalau dari barang
+    if (kasbonMode === 'barang') { cart = {}; renderProducts(); updateCartUI(); }
+    showToast('📒 Kasbon ' + nama + ' disimpan!');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
+
+window.bayarCicilan = async function(id, sisa) {
+  const { db, doc, updateDoc } = window._fb;
+  const jml = prompt('Jumlah cicilan yang dibayar (Sisa: ' + formatRp(sisa) + '):', sisa);
+  if (!jml) return;
+  const bayar = parseInt(jml);
+  if (!bayar || bayar <= 0) { showToast('⚠ Jumlah tidak valid!', true); return; }
+  if (bayar > sisa) { showToast('⚠ Bayar melebihi sisa hutang!', true); return; }
+  const kb = (window._kasbons||[]).find(k=>k.id===id);
+  if (!kb) return;
+  const cicilan = [...(kb.cicilan||[]), { jumlah: bayar, tgl: new Date().toLocaleDateString('id-ID') }];
+  const sisaBaru = sisa - bayar;
+  try {
+    await updateDoc(doc(db,'kasbon',id), {
+      cicilan, sisaHutang: sisaBaru,
+      status: sisaBaru <= 0 ? 'lunas' : 'hutang'
+    });
+    showToast(sisaBaru <= 0 ? '✅ Lunas!' : '💵 Cicilan ' + formatRp(bayar) + ' dicatat!');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
+
+window.lunasKasbon = async function(id) {
+  const { db, doc, updateDoc } = window._fb;
+  const kb = (window._kasbons||[]).find(k=>k.id===id);
+  if (!kb) return;
+  if (!confirm('Tandai kasbon ' + kb.nama + ' sebagai LUNAS?')) return;
+  const cicilan = [...(kb.cicilan||[]), { jumlah: kb.sisaHutang, tgl: new Date().toLocaleDateString('id-ID') }];
+  try {
+    await updateDoc(doc(db,'kasbon',id), { status:'lunas', sisaHutang:0, cicilan });
+    showToast('✅ ' + kb.nama + ' LUNAS!');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
+
+window.hapusKasbon = async function(id, nama) {
+  const { db, doc, deleteDoc } = window._fb;
+  if (!confirm('Hapus kasbon ' + nama + '?')) return;
+  try {
+    await deleteDoc(doc(db,'kasbon',id));
+    showToast('🗑 Kasbon ' + nama + ' dihapus');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
 
 // ============ BARCODE SCANNER ============
 let _scanMode = 'kasir';
