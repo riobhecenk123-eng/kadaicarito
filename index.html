@@ -1386,14 +1386,57 @@ function handleScanResult(code) {
       }, 2000);
     }
   } else {
-    // Mode kelola — isi field barcode
-    document.getElementById('scanner-result-name').textContent = '✅ Barcode siap digunakan';
-    document.getElementById('scanner-result-name').style.color = 'var(--green)';
-    setTimeout(() => {
-      document.getElementById('new-barcode').value = code;
-      closeScanner();
-      showToast('✅ Barcode tersimpan: ' + code);
-    }, 800);
+    // Mode kelola — lookup barcode dari Open Food Facts
+    document.getElementById('scanner-result-name').textContent = '🔍 Mencari info produk...';
+    document.getElementById('scanner-result-name').style.color = 'var(--muted)';
+
+    // Stop scanner dulu biar tidak scan ulang
+    if (html5QrCode) { try { await html5QrCode.stop(); } catch(e) {} html5QrCode = null; }
+    document.getElementById('scanner-modal').classList.remove('open');
+
+    // Isi barcode dulu
+    document.getElementById('new-barcode').value = code;
+    showToast('🔍 Mencari info produk...');
+
+    try {
+      // Coba Open Food Facts (database produk global termasuk Indonesia)
+      const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+      const data = await res.json();
+
+      if (data.status === 1 && data.product) {
+        const p = data.product;
+        const nama = p.product_name_id || p.product_name || p.abbreviated_product_name || '';
+        const brand = p.brands || '';
+        const fullName = nama || (brand ? brand : '');
+        const categories = p.categories_tags || [];
+
+        // Tebak kategori
+        let cat = 'Lainnya';
+        const catStr = (p.categories || '').toLowerCase();
+        if (catStr.includes('beverage') || catStr.includes('minuman') || catStr.includes('drink') || catStr.includes('water')) cat = 'Minuman';
+        else if (catStr.includes('snack') || catStr.includes('chip') || catStr.includes('crackers') || catStr.includes('biskuit')) cat = 'Snack';
+        else if (catStr.includes('noodle') || catStr.includes('mie') || catStr.includes('pasta') || catStr.includes('rice') || catStr.includes('makanan')) cat = 'Makanan';
+        else if (catStr.includes('sugar') || catStr.includes('oil') || catStr.includes('gula') || catStr.includes('minyak') || catStr.includes('beras') || catStr.includes('telur')) cat = 'Sembako';
+
+        // Tebak emoji
+        const emojiMap = { 'Minuman':'🥤', 'Snack':'🍿', 'Makanan':'🍜', 'Sembako':'🛒', 'Rokok':'🚬', 'Lainnya':'📦' };
+
+        if (fullName) {
+          document.getElementById('new-name').value = fullName;
+          // Set kategori
+          const catSelect = document.getElementById('new-cat');
+          for (let opt of catSelect.options) { if (opt.value === cat) { catSelect.value = cat; break; } }
+          document.getElementById('new-emoji').value = emojiMap[cat] || '📦';
+          showToast('✅ Info produk ditemukan: ' + fullName);
+        } else {
+          showToast('⚠ Produk ditemukan tapi nama kosong. Isi manual ya.', true);
+        }
+      } else {
+        showToast('⚠ Produk tidak ditemukan di database online. Isi manual ya.', true);
+      }
+    } catch(e) {
+      showToast('⚠ Gagal cari info produk. Isi manual ya.', true);
+    }
   }
 }
 
