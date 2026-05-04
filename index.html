@@ -583,6 +583,23 @@
     font-family: 'Syne', sans-serif; transition: all 0.2s; white-space: nowrap;
   }
   .scan-btn:active { transform: scale(0.96); }
+
+  /* USER CARD */
+  .user-card {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px;
+  }
+  .user-avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; flex-shrink: 0;
+  }
+  .user-avatar.admin { background: rgba(255,209,102,0.15); }
+  .user-avatar.member { background: rgba(72,149,239,0.15); }
+  .user-info { flex: 1; min-width: 0; }
+  .user-name { font-weight: 700; font-size: 14px; font-family: 'Syne', sans-serif; }
+  .user-role { font-size: 11px; color: var(--muted); margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -733,6 +750,28 @@
     </div>
     <div class="section-title">Daftar Barang (<span id="product-count">0</span>)</div>
     <div id="manage-list"></div>
+
+    <!-- SECTION KELOLA PENGGUNA (ADMIN ONLY) -->
+    <div id="manage-users-section" style="display:none;margin-top:24px">
+      <div class="sep"></div>
+      <div class="section-title" style="margin-bottom:14px">👥 Kelola Pengguna</div>
+      <div id="users-list"></div>
+      <div style="margin-top:14px;background:var(--card);border-radius:var(--radius-sm);padding:16px;border:1px solid var(--border)">
+        <div class="form-label" style="margin-bottom:10px;font-size:13px;font-weight:700">+ Tambah Pengguna Baru</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Nama</label><input type="text" class="form-input" id="new-user-nama" placeholder="Contoh: Budi"></div>
+          <div class="form-group"><label class="form-label">PIN (4-8 digit)</label><input type="password" class="form-input" id="new-user-pin" placeholder="••••" maxlength="8"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Role</label>
+          <select class="form-select" id="new-user-role">
+            <option value="member">👤 Anggota (Kasir)</option>
+            <option value="admin">👑 Admin</option>
+          </select>
+        </div>
+        <button class="add-product-btn" onclick="addUser()">+ Tambah Pengguna</button>
+      </div>
+    </div>
   </div>
 
   <!-- CART BAR -->
@@ -933,6 +972,24 @@ async function initApp(cfg) {
       });
       await batch.commit();
     }
+
+    // Check + seed users
+    const userSnap = await getDocs(collection(db, 'users'));
+    if (userSnap.empty) {
+      showLoadingText('Menyiapkan pengguna awal...');
+      const batch2 = writeBatch(db);
+      USERS.forEach(u => {
+        const ref = doc(collection(db, 'users'));
+        batch2.set(ref, u);
+      });
+      await batch2.commit();
+    }
+
+    // Listen users realtime
+    onSnapshot(collection(db, 'users'), snap => {
+      window._users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderUsers();
+    });
 
     // Listen products realtime
     onSnapshot(collection(db, 'products'), snap => {
@@ -1204,13 +1261,96 @@ function renderManage() {
       ${isAdmin ? `<button class="delete-btn" onclick="deleteProduct('${p.id}')">🗑</button>` : ''}
     </div>`;
   }).join('');
-  // Sembunyikan form tambah barang untuk anggota
   const addForm = document.getElementById('add-product-form');
   if (addForm) addForm.style.display = isAdmin ? 'block' : 'none';
-  // Tampilkan info role
   const roleInfo = document.getElementById('role-info-kelola');
   if (roleInfo) roleInfo.style.display = isAdmin ? 'none' : 'flex';
+  const usersSection = document.getElementById('manage-users-section');
+  if (usersSection) usersSection.style.display = isAdmin ? 'block' : 'none';
+  if (isAdmin) renderUsers();
 }
+
+// ============ KELOLA PENGGUNA ============
+function renderUsers() {
+  const users = window._users || [];
+  const list = document.getElementById('users-list');
+  if (!list) return;
+  if (!users.length) { list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Belum ada pengguna.</div>'; return; }
+  list.innerHTML = users.map(u => `
+    <div class="user-card">
+      <div class="user-avatar ${u.role}">${u.role === 'admin' ? '👑' : '👤'}</div>
+      <div class="user-info">
+        <div class="user-name">${u.nama}</div>
+        <div class="user-role">${u.role === 'admin' ? 'Admin' : 'Anggota'} · PIN: ${'•'.repeat(u.pin ? u.pin.length : 4)}</div>
+      </div>
+      <button class="edit-btn" onclick="editUser('${u.id}')">✏️</button>
+      <button class="delete-btn" onclick="deleteUser('${u.id}','${u.nama}')">🗑</button>
+    </div>`).join('');
+}
+
+window.addUser = async function() {
+  if (currentRole !== 'admin') return;
+  const { db, collection, addDoc } = window._fb;
+  const nama = document.getElementById('new-user-nama').value.trim();
+  const pin  = document.getElementById('new-user-pin').value.trim();
+  const role = document.getElementById('new-user-role').value;
+  if (!nama) { showToast('⚠ Nama wajib diisi!', true); return; }
+  if (!pin || pin.length < 4) { showToast('⚠ PIN minimal 4 digit!', true); return; }
+  const users = window._users || [];
+  if (users.find(u => u.pin === pin)) { showToast('⚠ PIN sudah dipakai pengguna lain!', true); return; }
+  try {
+    await addDoc(collection(db, 'users'), { nama, pin, role });
+    document.getElementById('new-user-nama').value = '';
+    document.getElementById('new-user-pin').value = '';
+    showToast('✅ ' + nama + ' ditambahkan!');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
+
+window.editUser = async function(id) {
+  if (currentRole !== 'admin') return;
+  const { db, doc, updateDoc } = window._fb;
+  const users = window._users || [];
+  const u = users.find(x => x.id === id);
+  if (!u) return;
+  const newNama = prompt('Nama baru untuk "' + u.nama + '":\n(kosongkan jika tidak mau ganti)', u.nama);
+  if (newNama === null) return;
+  const newPin = prompt('PIN baru untuk "' + u.nama + '":\n(kosongkan jika tidak mau ganti PIN)', '');
+  if (newPin === null) return;
+  const updates = {};
+  if (newNama.trim() && newNama.trim() !== u.nama) updates.nama = newNama.trim();
+  if (newPin.trim()) {
+    if (newPin.trim().length < 4) { showToast('⚠ PIN minimal 4 digit!', true); return; }
+    const conflict = users.find(x => x.pin === newPin.trim() && x.id !== id);
+    if (conflict) { showToast('⚠ PIN sudah dipakai ' + conflict.nama + '!', true); return; }
+    updates.pin = newPin.trim();
+  }
+  if (!Object.keys(updates).length) { showToast('Tidak ada perubahan.'); return; }
+  try {
+    await updateDoc(doc(db, 'users', id), updates);
+    if (currentNama === u.nama && updates.nama) {
+      currentNama = updates.nama;
+      localStorage.setItem('kasirku_nama', updates.nama);
+      updateRoleUI();
+    }
+    showToast('✅ Data ' + (updates.nama || u.nama) + ' diperbarui!');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
+
+window.deleteUser = async function(id, nama) {
+  if (currentRole !== 'admin') return;
+  const { db, doc, deleteDoc } = window._fb;
+  const users = window._users || [];
+  const admins = users.filter(u => u.role === 'admin');
+  const target = users.find(u => u.id === id);
+  if (target && target.role === 'admin' && admins.length <= 1) {
+    showToast('⚠ Tidak bisa hapus admin terakhir!', true); return;
+  }
+  if (!confirm('Hapus pengguna "' + nama + '"?')) return;
+  try {
+    await deleteDoc(doc(db, 'users', id));
+    showToast('🗑 ' + nama + ' dihapus');
+  } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
+};
 
 window.addProduct = async function() {
   if (currentRole !== 'admin') { showToast('⚠ Hanya admin yang bisa menambah barang!', true); return; }
@@ -1276,7 +1416,8 @@ window.closePinLogin = function() {
 };
 window.submitPin = function() {
   const pin = document.getElementById('pin-input').value.trim();
-  const user = USERS.find(u => u.pin === pin);
+  const users = window._users || USERS;
+  const user = users.find(u => u.pin === pin);
   if (user) {
     currentRole = user.role;
     currentNama = user.nama;
