@@ -829,9 +829,15 @@ const EMOJI_MAP = { 'Makanan':'🍜','Minuman':'🥤','Snack':'🍿','Rokok':'�
 const NOMINALS = [5000,10000,20000,50000,100000,200000];
 
 // ============ ROLE / PIN ============
-const ADMIN_PIN = '1234';   // <-- ganti PIN Admin di sini
-const MEMBER_PIN = '0000';  // <-- ganti PIN Anggota di sini
-let currentRole = localStorage.getItem('kasirku_role') || null; // 'admin' | 'member'
+// Daftar pengguna — tambah/edit di sini
+const USERS = [
+  { pin: '1234', nama: 'Rio',  role: 'admin' },   // <-- Admin
+  { pin: '0000', nama: 'Budi', role: 'member' },  // <-- Anggota 1
+  // Tambah pengguna baru di bawah ini:
+  // { pin: '1111', nama: 'Sari', role: 'member' },
+];
+let currentRole = localStorage.getItem('kasirku_role') || null;
+let currentNama = localStorage.getItem('kasirku_nama') || null;
 const DEFAULT_PRODUCTS = [
   { name:'Indomie Goreng', price:3500, cat:'Makanan', emoji:'🍜', stock:50 },
   { name:'Indomie Kuah', price:3500, cat:'Makanan', emoji:'🍝', stock:50 },
@@ -1113,6 +1119,7 @@ window.konfirmasiBayar = async function() {
     document.getElementById('konfirmasi-btn').textContent='⏳ Menyimpan...';
     await addDoc(collection(db,'transactions'), {
       items:txItems, total, bayar, kembalian,
+      kasir: currentNama || currentRole || 'Tidak diketahui',
       createdAt: serverTimestamp(),
       timeStr: new Date().toLocaleString('id-ID')
     });
@@ -1152,10 +1159,15 @@ function renderHistory() {
   if(!transactions.length){ list.innerHTML=`<div class="no-history"><span>📋</span>Belum ada transaksi</div>`; return; }
   list.innerHTML=transactions.map((tx,i)=>`
     <div class="transaction-card">
-      <div class="trans-header"><span class="trans-id">🧾 #${transactions.length-i}</span><span class="trans-time">${tx.timeStr||''}</span></div>
+      <div class="trans-header">
+        <span class="trans-id">🧾 #${transactions.length-i}</span>
+        <span class="trans-time">${tx.timeStr||''}</span>
+      </div>
       <div class="trans-items">${tx.items.map(it=>`${it.emoji} ${it.name} ×${it.qty}`).join(' · ')}</div>
       <div class="trans-total">
-        <span class="trans-total-label">Bayar ${formatRp(tx.bayar)} · Kembali ${formatRp(tx.kembalian)}</span>
+        <span class="trans-total-label">
+          ${tx.kasir ? `👤 ${tx.kasir} · ` : ''}Bayar ${formatRp(tx.bayar)} · Kembali ${formatRp(tx.kembalian)}
+        </span>
         <span class="trans-total-val">${formatRp(tx.total)}</span>
       </div>
     </div>`).join('');
@@ -1264,27 +1276,25 @@ window.closePinLogin = function() {
 };
 window.submitPin = function() {
   const pin = document.getElementById('pin-input').value.trim();
-  if (pin === ADMIN_PIN) {
-    currentRole = 'admin';
-    localStorage.setItem('kasirku_role','admin');
+  const user = USERS.find(u => u.pin === pin);
+  if (user) {
+    currentRole = user.role;
+    currentNama = user.nama;
+    localStorage.setItem('kasirku_role', user.role);
+    localStorage.setItem('kasirku_nama', user.nama);
     closePinLogin();
     updateRoleUI();
     renderManage();
-    showToast('✅ Login sebagai Admin');
-  } else if (pin === MEMBER_PIN) {
-    currentRole = 'member';
-    localStorage.setItem('kasirku_role','member');
-    closePinLogin();
-    updateRoleUI();
-    renderManage();
-    showToast('✅ Login sebagai Anggota');
+    showToast('✅ Halo, ' + user.nama + '!');
   } else {
-    document.getElementById('pin-error').textContent='❌ PIN salah!';
+    document.getElementById('pin-error').textContent = '❌ PIN salah!';
   }
 };
 window.logoutRole = function() {
   currentRole = null;
+  currentNama = null;
   localStorage.removeItem('kasirku_role');
+  localStorage.removeItem('kasirku_nama');
   updateRoleUI();
   renderManage();
   showToast('👋 Keluar dari sesi');
@@ -1293,11 +1303,16 @@ function updateRoleUI() {
   const badge = document.getElementById('role-badge');
   const loginBtn = document.getElementById('role-login-btn');
   const logoutBtn = document.getElementById('role-logout-btn');
+  const nama = currentNama || (currentRole === 'admin' ? 'Admin' : 'Anggota');
   if (currentRole === 'admin') {
-    badge.textContent='👑 Admin'; badge.style.background='rgba(255,209,102,0.15)'; badge.style.color='var(--accent2)'; badge.style.border='1px solid rgba(255,209,102,0.4)'; badge.style.display='flex';
+    badge.textContent = '👑 ' + nama;
+    badge.style.background='rgba(255,209,102,0.15)'; badge.style.color='var(--accent2)';
+    badge.style.border='1px solid rgba(255,209,102,0.4)'; badge.style.display='flex';
     loginBtn.style.display='none'; logoutBtn.style.display='block';
   } else if (currentRole === 'member') {
-    badge.textContent='👤 Anggota'; badge.style.background='rgba(72,149,239,0.15)'; badge.style.color='var(--blue)'; badge.style.border='1px solid rgba(72,149,239,0.4)'; badge.style.display='flex';
+    badge.textContent = '👤 ' + nama;
+    badge.style.background='rgba(72,149,239,0.15)'; badge.style.color='var(--blue)';
+    badge.style.border='1px solid rgba(72,149,239,0.4)'; badge.style.display='flex';
     loginBtn.style.display='none'; logoutBtn.style.display='block';
   } else {
     badge.style.display='none';
