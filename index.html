@@ -597,6 +597,32 @@
   .date-bar.modified { background: rgba(255,107,53,0.1); border-bottom-color: rgba(255,107,53,0.3); }
   .date-bar.modified .date-bar-text { color: var(--accent); }
 
+  /* ACTIVITY HISTORY */
+  .activity-filter-btn {
+    padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif; cursor: pointer;
+    background: var(--card); border: 1px solid var(--border); color: var(--muted);
+    transition: all 0.2s; white-space: nowrap;
+  }
+  .activity-filter-btn.active { background: rgba(255,107,53,0.15); border-color: var(--accent); color: var(--accent); }
+  .activity-item {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px;
+    border-left: 3px solid transparent;
+  }
+  .activity-item.transaksi { border-left-color: var(--green); }
+  .activity-item.kasbon { border-left-color: var(--danger); }
+  .activity-item.kasbon-bayar { border-left-color: var(--accent2); }
+  .activity-item.barang { border-left-color: var(--blue); }
+  .activity-item.akun { border-left-color: var(--muted); }
+  .activity-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+  .activity-body { flex: 1; min-width: 0; }
+  .activity-title { font-size: 13px; font-weight: 700; font-family: 'Syne', sans-serif; margin-bottom: 2px; }
+  .activity-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .activity-meta { font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .activity-amount { font-size: 14px; font-weight: 800; font-family: 'Syne', sans-serif; flex-shrink: 0; }
+
   /* KASBON */
   .kasbon-mode-btn {
     flex: 1; padding: 8px; border-radius: var(--radius-sm); font-size: 12px;
@@ -745,6 +771,7 @@
     <div class="tab active" onclick="switchTab('kasir')"><span class="tab-icon">🛒</span>Kasir</div>
     <div class="tab" onclick="switchTab('riwayat')"><span class="tab-icon">📋</span>Riwayat</div>
     <div class="tab" onclick="switchTab('kasbon')"><span class="tab-icon">📒</span>Kasbon</div>
+    <div class="tab" onclick="switchTab('history')"><span class="tab-icon">🕓</span>Aktivitas</div>
     <div class="tab" onclick="switchTab('kelola')"><span class="tab-icon">⚙️</span>Kelola</div>
   </div>
 
@@ -782,6 +809,22 @@
     </div>
     <div class="section-title">Riwayat Transaksi <button class="clear-btn" onclick="clearHistory()">Hapus Semua</button></div>
     <div id="history-list"><div class="no-history"><span>📋</span>Belum ada transaksi</div></div>
+  </div>
+
+  <!-- AKTIVITAS / HISTORY -->
+  <div class="page" id="page-history">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-label">Total Aktivitas</div><div class="stat-value accent" id="activity-total">0</div></div>
+      <div class="stat-card"><div class="stat-label">Hari Ini</div><div class="stat-value" id="activity-today">0</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="activity-filter-btn active" id="afbtn-semua" onclick="setActivityFilter('semua')">Semua</button>
+      <button class="activity-filter-btn" id="afbtn-transaksi" onclick="setActivityFilter('transaksi')">💰 Transaksi</button>
+      <button class="activity-filter-btn" id="afbtn-kasbon" onclick="setActivityFilter('kasbon')">📒 Kasbon</button>
+      <button class="activity-filter-btn" id="afbtn-barang" onclick="setActivityFilter('barang')">📦 Barang</button>
+      <button class="activity-filter-btn" id="afbtn-akun" onclick="setActivityFilter('akun')">👤 Akun</button>
+    </div>
+    <div id="activity-list"><div style="text-align:center;padding:30px;color:var(--muted)">🕓 Belum ada aktivitas</div></div>
   </div>
 
   <!-- KASBON -->
@@ -1164,6 +1207,13 @@ async function initApp(cfg) {
       renderKasbon();
     });
 
+    // Listen activity log realtime
+    const actQuery = query(collection(db, 'activity'), orderBy('createdAt', 'desc'));
+    onSnapshot(actQuery, snap => {
+      window._activities = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderActivityList();
+    });
+
     hideLoading();
     showApp();
   } catch(e) {
@@ -1187,6 +1237,70 @@ window.disconnect = function() {
   location.reload();
 };
 
+// ============ ACTIVITY LOG ============
+let activityFilter = 'semua';
+
+async function logActivity(type, icon, title, desc, amount) {
+  try {
+    const { db, collection, addDoc, serverTimestamp } = window._fb;
+    await addDoc(collection(db, 'activity'), {
+      type, icon, title,
+      desc: desc || '',
+      amount: amount || 0,
+      kasir: currentNama || currentRole || '?',
+      timeStr: activeDate.toLocaleString('id-ID'),
+      createdAt: serverTimestamp()
+    });
+  } catch(e) {}
+}
+
+window.setActivityFilter = function(filter) {
+  activityFilter = filter;
+  document.querySelectorAll('.activity-filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('afbtn-' + filter)?.classList.add('active');
+  renderActivityList();
+};
+
+function renderActivityList() {
+  const list = document.getElementById('activity-list');
+  if (!list) return;
+  const all = window._activities || [];
+
+  // Update stats
+  const todayStr = new Date().toLocaleDateString('id-ID');
+  const todayCount = all.filter(a => a.timeStr && a.timeStr.startsWith(todayStr.split('/')[0])).length;
+  const el = document.getElementById('activity-total');
+  const el2 = document.getElementById('activity-today');
+  if (el) el.textContent = all.length;
+  if (el2) el2.textContent = all.filter(a => {
+    if (!a.timeStr) return false;
+    const d = new Date(); const t = d.toLocaleDateString('id-ID');
+    return a.timeStr.includes(t.split('/')[2]) && a.timeStr.includes(t.split('/')[1]);
+  }).length;
+
+  const filtered = activityFilter === 'semua' ? all : all.filter(a => a.type === activityFilter || (activityFilter === 'kasbon' && (a.type === 'kasbon' || a.type === 'kasbon-bayar')));
+
+  if (!filtered.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">🕓 Belum ada aktivitas</div>';
+    return;
+  }
+
+  const colorMap = { transaksi: 'var(--green)', kasbon: 'var(--danger)', 'kasbon-bayar': 'var(--accent2)', barang: 'var(--blue)', akun: 'var(--muted)' };
+
+  list.innerHTML = filtered.map(a => `
+    <div class="activity-item ${a.type}">
+      <div class="activity-icon">${a.icon}</div>
+      <div class="activity-body">
+        <div class="activity-title">${a.title}</div>
+        ${a.desc ? `<div class="activity-desc">${a.desc}</div>` : ''}
+        <div class="activity-meta">👤 ${a.kasir || '?'} · ${a.timeStr || ''}</div>
+      </div>
+      ${a.amount ? `<div class="activity-amount" style="color:${colorMap[a.type]||'var(--text)'}">
+        ${a.type === 'kasbon-bayar' ? '+' : ''}${formatRp(a.amount)}
+      </div>` : ''}
+    </div>`).join('');
+}
+
 // ============ REQUIRE LOGIN ============
 function requireLogin() {
   if (!currentRole) {
@@ -1199,10 +1313,11 @@ function requireLogin() {
 
 
 window.switchTab = function(tab) {
-  const tabs = ['kasir','riwayat','kasbon','kelola'];
+  const tabs = ['kasir','riwayat','kasbon','history','kelola'];
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', tabs[i] === tab));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+tab));
   if (tab === 'kasbon') renderKasbon();
+  if (tab === 'history') renderActivityList();
 };
 
 // ============ CATEGORIES ============
@@ -1368,6 +1483,9 @@ window.konfirmasiBayar = async function() {
     document.getElementById('bayar-modal').classList.remove('open');
     document.getElementById('konfirmasi-btn').disabled=false;
     document.getElementById('konfirmasi-btn').textContent='✅ Konfirmasi Bayar';
+    // Log activity
+    logActivity('transaksi','💰','Transaksi Penjualan',
+      txItems.map(i=>`${i.emoji} ${i.name} ×${i.qty}`).join(', '), total);
     showToast(`✅ Berhasil! Kembalian ${formatRp(kembalian)}`);
   } catch(e) {
     showToast('❌ Gagal menyimpan: '+e.message, true);
@@ -1570,6 +1688,7 @@ window.addProduct = async function() {
   if(!price){ showToast('⚠ Harga wajib diisi!',true); return; }
   try {
     await addDoc(collection(db,'products'), {name,price,cat,emoji,stock,...(barcode?{barcode}:{})});
+    logActivity('barang','📦','Barang Ditambah: '+name, cat+' · Stok: '+stock+' · '+formatRp(price), price);
     document.getElementById('new-name').value='';
     document.getElementById('new-price').value='';
     document.getElementById('new-emoji').value='';
@@ -1585,6 +1704,7 @@ window.deleteProduct = async function(id) {
   if(!confirm('Hapus barang ini dari database?')) return;
   try {
     await deleteDoc(doc(db,'products',id));
+    logActivity('barang','🗑','Barang Dihapus', 'ID: '+id, 0);
     delete cart[id]; updateCartUI();
     showToast('🗑 Barang dihapus');
   } catch(e){ showToast('❌ Gagal: '+e.message,true); }
@@ -1631,12 +1751,15 @@ window.submitPin = function() {
     closePinLogin();
     updateRoleUI();
     renderManage();
+    logActivity('akun', user.role==='admin'?'👑':'👤', 'Login: '+user.nama, user.role==='admin'?'Masuk sebagai Admin':'Masuk sebagai Anggota', 0);
     showToast('✅ Halo, ' + user.nama + '!');
   } else {
     document.getElementById('pin-error').textContent = '❌ PIN salah!';
   }
 };
 window.logoutRole = function() {
+  const nama = currentNama;
+  logActivity('akun','🚪','Logout: '+(nama||'?'), 'Keluar dari sesi', 0);
   currentRole = null;
   currentNama = null;
   localStorage.removeItem('kasirku_role');
@@ -1685,6 +1808,7 @@ window.editProduct = async function(id) {
   try {
     const { db, doc, updateDoc } = window._fb;
     await updateDoc(doc(db,'products',id), { price, stock });
+    logActivity('barang','✏️','Barang Diedit: '+p.name, 'Harga: '+formatRp(price)+' · Stok: '+stock, price);
     showToast(`✅ "${p.name}" diperbarui!`);
   } catch(e) { showToast('❌ Gagal: '+e.message,true); }
 };
@@ -1854,6 +1978,7 @@ window.tambahKasbon = async function() {
     document.getElementById('kasbon-ket') && (document.getElementById('kasbon-ket').value = '');
     // Kosongkan keranjang kalau dari barang
     if (kasbonMode === 'barang') { cart = {}; renderProducts(); updateCartUI(); }
+    logActivity('kasbon','📒','Kasbon Baru: '+nama, keterangan, totalHutang);
     showToast('📒 Kasbon ' + nama + ' disimpan!');
   } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
 };
@@ -1875,6 +2000,8 @@ window.bayarCicilan = async function(id, sisa) {
       cicilan, sisaHutang: sisaBaru,
       status: sisaBaru <= 0 ? 'lunas' : 'hutang'
     });
+    logActivity('kasbon-bayar','💵','Bayar Cicilan: '+kb.nama,
+      sisaBaru <= 0 ? 'Lunas!' : 'Sisa: '+formatRp(sisaBaru), bayar);
     showToast(sisaBaru <= 0 ? '✅ Lunas!' : '💵 Cicilan ' + formatRp(bayar) + ' dicatat!');
   } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
 };
@@ -1888,6 +2015,7 @@ window.lunasKasbon = async function(id) {
   const cicilan = [...(kb.cicilan||[]), { jumlah: kb.sisaHutang, tgl: activeDate.toLocaleDateString('id-ID') }];
   try {
     await updateDoc(doc(db,'kasbon',id), { status:'lunas', sisaHutang:0, cicilan });
+    logActivity('kasbon-bayar','✅','Kasbon Lunas: '+kb.nama, 'Semua hutang terlunasi', kb.totalHutang);
     showToast('✅ ' + kb.nama + ' LUNAS!');
   } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
 };
