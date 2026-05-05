@@ -1228,28 +1228,74 @@ window.hapusNote=async function(id){
   catch(e){showToast("❌ Gagal: "+e.message,"error");}
 };
 async function init(){
+  // Timeout 15 detik — kalau gagal konek tampilkan pesan
+  const timeout = setTimeout(()=>{
+    hideLoading();
+    document.getElementById('loading-screen').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+    document.getElementById('login-error').textContent='⚠ Koneksi lambat. Cek internet atau update Rules Firebase.';
+  }, 15000);
+
   try{
     const app=initializeApp(FIREBASE_CONFIG);
     db=getFirestore(app);
     setLoadingText('Memuat data produk...');
+
+    // Test koneksi dulu
     const snap=await getDocs(collection(db,'products'));
+    clearTimeout(timeout);
+
     if(snap.empty){
       setLoadingText('Menyiapkan data awal...');
       const batch=writeBatch(db);
       DEFAULT_PRODUCTS.forEach(p=>{const r=doc(collection(db,'products'));batch.set(r,p);});
       await batch.commit();
     }
-    onSnapshot(collection(db,'products'),snap=>{products=snap.docs.map(d=>({id:d.id,...d.data()}));renderCategories();renderProducts();renderManage();});
-    onSnapshot(query(collection(db,'transactions'),orderBy('createdAt','desc')),snap=>{transactions=snap.docs.map(d=>({id:d.id,...d.data()}));renderHistory();});
-    onSnapshot(query(collection(db,'kasbon'),orderBy('createdAt','desc')),snap=>{kasbonList=snap.docs.map(d=>({id:d.id,...d.data()}));renderKasbonPage();});
-    onSnapshot(query(collection(db,'notes'),orderBy('createdAt','desc')),snap=>{noteList=snap.docs.map(d=>({id:d.id,...d.data()}));renderNoteList();});
-    // Load rokok counts from localStorage
-    try{const saved=localStorage.getItem('kasirku_rokok');if(saved)rokokCounts=JSON.parse(saved);}catch(e){}
+
+    // Realtime listeners — masing-masing try-catch sendiri agar tidak saling blokir
+    onSnapshot(collection(db,'products'),
+      snap=>{products=snap.docs.map(d=>({id:d.id,...d.data()}));renderCategories();renderProducts();renderManage();},
+      err=>console.warn('products listener:',err.message)
+    );
+    onSnapshot(query(collection(db,'transactions'),orderBy('createdAt','desc')),
+      snap=>{transactions=snap.docs.map(d=>({id:d.id,...d.data()}));renderHistory();},
+      err=>console.warn('transactions listener:',err.message)
+    );
+    onSnapshot(query(collection(db,'kasbon'),orderBy('createdAt','desc')),
+      snap=>{kasbonList=snap.docs.map(d=>({id:d.id,...d.data()}));renderKasbonPage();},
+      err=>console.warn('kasbon listener:',err.message)
+    );
+    // Notes — tidak blokir kalau index belum ada
+    try{
+      onSnapshot(query(collection(db,'notes'),orderBy('createdAt','desc')),
+        snap=>{noteList=snap.docs.map(d=>({id:d.id,...d.data()}));renderNoteList();},
+        err=>{ // fallback tanpa sort kalau index belum ada
+          onSnapshot(collection(db,'notes'),
+            snap=>{noteList=snap.docs.map(d=>({id:d.id,...d.data()})).reverse();renderNoteList();},
+            e2=>console.warn('notes listener fallback:',e2.message)
+          );
+        }
+      );
+    }catch(e){console.warn('notes init:',e.message);}
+
+    // Load rokok counts dari localStorage
+    try{const rk=localStorage.getItem('kasirku_rokok');if(rk)rokokCounts=JSON.parse(rk);}catch(e){}
+
     hideLoading();
     const saved=sessionStorage.getItem('kasirku_user');
     if(saved){currentUser=JSON.parse(saved);applyUserRole();showApp();}
     else showLogin();
-  }catch(e){hideLoading();alert('❌ Gagal konek Firebase: '+e.message);}
+
+  }catch(e){
+    clearTimeout(timeout);
+    hideLoading();
+    document.getElementById('login-screen').style.display='flex';
+    const msg = e.message.includes('permission') || e.message.includes('Missing')
+      ? '⚠ Firestore Rules sudah expired! Perbarui di Firebase Console → Firestore → Rules'
+      : '❌ Gagal konek Firebase: '+e.message;
+    document.getElementById('login-error').textContent=msg;
+    console.error('Firebase init error:',e);
+  }
 }
 init();
 </script>
