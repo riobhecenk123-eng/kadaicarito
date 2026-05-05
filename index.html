@@ -39,6 +39,20 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .login-btn:active{transform:scale(.98)}
 .login-error{color:var(--danger);font-size:12px;text-align:center;min-height:18px;margin-top:8px}
 .admin-hint{font-size:11px;color:var(--muted);text-align:center;margin-top:10px}
+/* PIN PAD */
+.pin-label{font-size:13px;color:var(--muted);text-align:center;margin-bottom:12px;font-weight:600}
+.pin-dots{display:flex;justify-content:center;gap:14px;margin-bottom:16px}
+.pin-dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--border);background:transparent;transition:all .15s;display:block}
+.pin-dot.filled{background:var(--accent);border-color:var(--accent);transform:scale(1.1)}
+.pin-dot.error{background:var(--danger);border-color:var(--danger)}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.pin-btn{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;font-size:20px;font-weight:800;font-family:'Syne',sans-serif;color:var(--text);cursor:pointer;transition:all .15s;text-align:center}
+.pin-btn:active{background:var(--accent);border-color:var(--accent);color:white;transform:scale(.95)}
+.pin-btn-clear{color:var(--danger);font-size:18px}
+.pin-btn-ok{background:var(--accent);border-color:var(--accent);color:white;font-size:20px}
+.pin-btn-ok:active{background:#e55a25}
+#pin-section{display:block}
+
 
 #app{display:none}
 .header{background:var(--surface);padding:12px 16px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
@@ -358,10 +372,33 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       </div>
     </div>
     <input type="text" class="login-input" id="login-name" placeholder="Nama kamu">
-    <input type="password" class="login-input" id="login-pass" placeholder="Password admin">
-    <button class="login-btn" onclick="doLogin()">Masuk →</button>
+    <!-- PIN INPUT -->
+    <div id="pin-section">
+      <div class="pin-label">Masukkan PIN Admin</div>
+      <div class="pin-dots" id="pin-dots">
+        <span class="pin-dot" id="pd0"></span>
+        <span class="pin-dot" id="pd1"></span>
+        <span class="pin-dot" id="pd2"></span>
+        <span class="pin-dot" id="pd3"></span>
+      </div>
+      <div class="pin-pad">
+        <button class="pin-btn" onclick="pinPress('1')">1</button>
+        <button class="pin-btn" onclick="pinPress('2')">2</button>
+        <button class="pin-btn" onclick="pinPress('3')">3</button>
+        <button class="pin-btn" onclick="pinPress('4')">4</button>
+        <button class="pin-btn" onclick="pinPress('5')">5</button>
+        <button class="pin-btn" onclick="pinPress('6')">6</button>
+        <button class="pin-btn" onclick="pinPress('7')">7</button>
+        <button class="pin-btn" onclick="pinPress('8')">8</button>
+        <button class="pin-btn" onclick="pinPress('9')">9</button>
+        <button class="pin-btn pin-btn-clear" onclick="pinClear()">⌫</button>
+        <button class="pin-btn" onclick="pinPress('0')">0</button>
+        <button class="pin-btn pin-btn-ok" onclick="doLogin()">✓</button>
+      </div>
+    </div>
+    <button class="login-btn" id="kasir-masuk-btn" onclick="doLogin()" style="display:none">Masuk →</button>
     <div class="login-error" id="login-error"></div>
-    <div class="admin-hint">💡 Password default admin: <b>admin123</b></div>
+    <div class="admin-hint" id="admin-hint-text">💡 PIN default admin: <b>1234</b></div>
   </div>
 </div>
 
@@ -452,9 +489,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <!-- KELOLA PAGE -->
   <div class="page" id="page-kelola">
     <div class="admin-section">
-      <div class="admin-section-title">🔐 Ganti Password Admin</div>
+      <div class="admin-section-title">🔐 Ganti PIN Admin</div>
       <div class="form-row">
-        <input type="password" class="form-input" id="new-admin-pass" placeholder="Password baru (min 4 karakter)">
+        <input type="password" class="form-input" id="new-admin-pass" placeholder="PIN baru (4 angka, contoh: 5678)" type="tel" maxlength="4">
         <button onclick="changeAdminPass()" style="padding:11px 14px;background:var(--yellow);color:#1a1000;border:none;border-radius:var(--radius-sm);font-weight:700;font-family:'Syne',sans-serif;cursor:pointer;font-size:13px;">Simpan</button>
       </div>
     </div>
@@ -660,22 +697,52 @@ const stockLabel=s=>s<=0?'Habis':s<=5?`⚠ Sisa ${s}`:`Stok: ${s}`;
 
 // ===== LOGIN =====
 let selectedRole='admin';
+let pinValue='';
+
 window.selectRole=function(role){
   selectedRole=role;
   document.getElementById('role-admin').classList.toggle('selected',role==='admin');
   document.getElementById('role-member').classList.toggle('selected',role==='member');
-  document.getElementById('login-pass').style.display=role==='admin'?'block':'none';
+  // PIN section hanya untuk admin
+  document.getElementById('pin-section').style.display=role==='admin'?'block':'none';
+  document.getElementById('kasir-masuk-btn').style.display=role==='member'?'block':'none';
+  document.getElementById('admin-hint-text').style.display=role==='admin'?'block':'none';
+  pinValue='';updatePinDots();
 };
+
+window.pinPress=function(d){
+  if(pinValue.length>=4)return;
+  pinValue+=d;
+  updatePinDots();
+  if(pinValue.length===4) setTimeout(doLogin,200);
+};
+
+window.pinClear=function(){
+  pinValue=pinValue.slice(0,-1);
+  updatePinDots();
+};
+
+function updatePinDots(){
+  for(let i=0;i<4;i++){
+    const dot=document.getElementById('pd'+i);
+    if(dot){dot.classList.toggle('filled',i<pinValue.length);dot.classList.remove('error');}
+  }
+}
+
+function shakePin(){
+  for(let i=0;i<4;i++){const d=document.getElementById('pd'+i);if(d){d.classList.add('error');setTimeout(()=>d.classList.remove('error'),600);}}
+  setTimeout(()=>{pinValue='';updatePinDots();},600);
+}
 
 window.doLogin=async function(){
   const name=document.getElementById('login-name').value.trim();
-  const pass=document.getElementById('login-pass').value;
   const errEl=document.getElementById('login-error');
   if(!name){errEl.textContent='❌ Masukkan nama kamu dulu';return;}
   if(selectedRole==='admin'){
-    let stored='admin123';
-    try{const d=await getDoc(doc(db,'config','settings'));if(d.exists()&&d.data().adminPassword)stored=d.data().adminPassword;}catch(e){}
-    if(pass!==stored){errEl.textContent='❌ Password admin salah';return;}
+    if(pinValue.length<4){errEl.textContent='❌ PIN harus 4 angka';return;}
+    let stored='1234';
+    try{const d=await getDoc(doc(db,'config','settings'));if(d.exists()&&d.data().adminPin)stored=d.data().adminPin;}catch(e){}
+    if(pinValue!==stored){errEl.textContent='❌ PIN salah, coba lagi';shakePin();return;}
   }
   errEl.textContent='';
   currentUser={name,role:selectedRole};
@@ -697,15 +764,15 @@ window.doLogout=function(){
   sessionStorage.removeItem('kasirku_user');currentUser=null;cart={};
   document.getElementById('app').style.display='none';
   document.getElementById('login-name').value='';
-  document.getElementById('login-pass').value='';
   document.getElementById('login-error').textContent='';
+  pinValue='';updatePinDots();
   showLogin();
 };
 
 window.changeAdminPass=async function(){
   const np=document.getElementById('new-admin-pass').value.trim();
-  if(!np||np.length<4){showToast('❌ Password minimal 4 karakter','error');return;}
-  try{await setDoc(doc(db,'config','settings'),{adminPassword:np},{merge:true});document.getElementById('new-admin-pass').value='';showToast('✅ Password admin diubah!');}
+  if(!np||np.length<4||!/^[0-9]+$/.test(np)){showToast('❌ PIN harus 4 angka (contoh: 5678)','error');return;}
+  try{await setDoc(doc(db,'config','settings'),{adminPin:np},{merge:true});document.getElementById('new-admin-pass').value='';showToast('✅ PIN admin diubah!');}
   catch(e){showToast('❌ Gagal: '+e.message,'error');}
 };
 
