@@ -1133,7 +1133,7 @@ function getRokokProducts(){return products.filter(p=>p.cat==="Rokok");}
 function renderRokokCounter(){
   const rokokProds=getRokokProducts();
   const el=document.getElementById("rokok-counter-list");
-  if(!rokokProds.length){el.innerHTML="<div style="font-size:13px;color:var(--muted);text-align:center;padding:10px">Belum ada produk kategori Rokok</div>";return;}
+  if(!rokokProds.length){el.innerHTML='<div style="font-size:13px;color:var(--muted);text-align:center;padding:10px">Belum ada produk kategori Rokok</div>';return;}
   el.innerHTML=rokokProds.map(p=>{
     const count=rokokCounts[p.id]||0;
     return `<div class="rokok-counter-item">
@@ -1165,7 +1165,7 @@ window.resetSemuaRokok=function(){
 
 function renderNoteList(){
   const list=document.getElementById("note-list");
-  if(!noteList.length){list.innerHTML="<div class="no-note"><span>📝</span>Belum ada catatan. Ketuk tombol + untuk mulai menulis.</div>";return;}
+  if(!noteList.length){list.innerHTML='<div class="no-note"><span>📝</span>Belum ada catatan. Ketuk tombol + untuk mulai menulis.</div>';return;}
   list.innerHTML=noteList.map(n=>{
     const judul=n.title||"Tanpa Judul";
     return `<div class="note-card">
