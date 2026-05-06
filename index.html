@@ -989,7 +989,7 @@
       <div class="section-title" style="margin-bottom:14px">Tambah Barang Baru</div>
       <div class="form-group"><label class="form-label">Nama Barang</label><input type="text" class="form-input" id="new-name" placeholder="Contoh: Indomie Goreng"></div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Harga (Rp)</label><input type="number" class="form-input" id="new-price" placeholder="3500"></div>
+        <div class="form-group"><label class="form-label">Harga Jual (Rp)</label><input type="number" class="form-input" id="new-price" placeholder="3500" oninput="updateProfitPreview()"></div>
         <div class="form-group">
           <label class="form-label">Kategori</label>
           <select class="form-select" id="new-cat">
@@ -1000,6 +1000,19 @@
             <option value="Sembako">🛒 Sembako</option>
             <option value="Lainnya">📦 Lainnya</option>
           </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" style="color:var(--accent2)">💰 Harga Modal (Rp) <span style="font-size:10px;font-weight:400;color:var(--muted)">👑 Hanya admin</span></label>
+          <input type="number" class="form-input" id="new-modal" placeholder="Contoh: 2500" oninput="updateProfitPreview()" style="border-color:rgba(255,214,0,.3)">
+        </div>
+        <div class="form-group" id="profit-preview-wrap" style="display:none">
+          <label class="form-label">✨ Estimasi Untung / Item</label>
+          <div style="background:rgba(6,214,160,.08);border:1px solid rgba(6,214,160,.3);border-radius:10px;padding:10px 14px;height:45px;display:flex;align-items:center;gap:8px">
+            <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:16px" id="profit-preview-val">Rp 0</span>
+            <span style="font-size:12px;color:var(--muted)" id="profit-preview-pct"></span>
+          </div>
         </div>
       </div>
       <div class="form-row">
@@ -1773,18 +1786,62 @@ window.clearHistory = async function() {
 function renderManage() {
   document.getElementById('product-count').textContent=products.length;
   const isAdmin = currentRole === 'admin';
+
+  // Ringkasan modal/untung untuk admin
+  if (isAdmin) {
+    const totalModal = products.reduce((s,p)=>s+(p.modal||0)*(p.stock||0),0);
+    const totalJual  = products.reduce((s,p)=>s+(p.price||0)*(p.stock||0),0);
+    const potensi    = totalJual - totalModal;
+    let summEl = document.getElementById('profit-summary-box');
+    if (!summEl) {
+      summEl = document.createElement('div');
+      summEl.id = 'profit-summary-box';
+      summEl.style.cssText = 'background:rgba(255,214,0,.07);border:1px solid rgba(255,214,0,.25);border-radius:14px;padding:14px 16px;margin-bottom:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center';
+      const manageList = document.getElementById('manage-list');
+      manageList.parentNode.insertBefore(summEl, manageList);
+    }
+    summEl.innerHTML = `
+      <div><div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Total Modal</div><div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--accent2)">${formatRp(totalModal)}</div></div>
+      <div><div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Nilai Stok</div><div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--accent)">${formatRp(totalJual)}</div></div>
+      <div><div style="font-size:10px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Potensi Untung</div><div style="font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--green)">${formatRp(potensi)}</div></div>`;
+    summEl.style.display = 'grid';
+  } else {
+    const summEl = document.getElementById('profit-summary-box');
+    if (summEl) summEl.style.display = 'none';
+  }
+
   document.getElementById('manage-list').innerHTML=products.map(p=>{
     const stock = p.stock !== undefined ? p.stock : 0;
     const stockColor = stock <= 5 ? 'var(--danger)' : stock <= 10 ? 'var(--accent2)' : 'var(--green)';
+    const modal  = p.modal || 0;
+    const untung = (p.price||0) - modal;
+    const pct    = modal > 0 ? Math.round((untung/modal)*100) : 0;
+
+    // Info modal — hanya admin
+    const modalRow = isAdmin ? `
+      <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <span style="background:rgba(255,214,0,.1);border:1px solid rgba(255,214,0,.25);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--accent2);font-family:'Syne',sans-serif;font-weight:700">
+          💰 Modal: ${modal > 0 ? formatRp(modal) : '<span style="color:var(--muted)">Belum diisi</span>'}
+        </span>
+        ${modal > 0 ? `<span style="background:${untung>=0?'rgba(6,214,160,.1)':'rgba(239,68,68,.1)'};border:1px solid ${untung>=0?'rgba(6,214,160,.3)':'rgba(239,68,68,.3)'};border-radius:20px;padding:3px 10px;font-size:11px;color:${untung>=0?'var(--green)':'var(--danger)'};font-family:'Syne',sans-serif;font-weight:700">
+          ${untung>=0?'✅':'⚠'} Untung: ${untung>=0?'+':''}${formatRp(untung)} (${pct}%)
+        </span>` : ''}
+      </div>` : '';
+
     return `<div class="manage-card">
       <span class="manage-emoji">${p.emoji}</span>
-      <div class="manage-info">
+      <div class="manage-info" style="flex:1;min-width:0">
         <div class="manage-name">${p.name}</div>
         <div class="manage-meta">${p.cat} · <span style="color:${stockColor}">Stok: ${stock}</span>${p.barcode?` · <span style="color:var(--muted);font-size:10px">🔖${p.barcode}</span>`:''}</div>
+        ${modalRow}
       </div>
-      <span class="manage-price">${formatRp(p.price)}</span>
-      ${isAdmin ? `<button class="edit-btn" onclick="editProduct('${p.id}')">✏️</button>` : ''}
-      ${isAdmin ? `<button class="delete-btn" onclick="deleteProduct('${p.id}')">🗑</button>` : ''}
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;align-items:flex-end">
+        <span class="manage-price">${formatRp(p.price)}</span>
+        <div style="display:flex;gap:5px">
+          ${isAdmin ? `<button class="edit-btn" onclick="editProduct('${p.id}')">✏️</button>` : ''}
+          ${isAdmin ? `<button class="delete-btn" onclick="deleteProduct('${p.id}')">🗑</button>` : ''}
+        </div>
+      </div>
     </div>`;
   }).join('');
   const addForm = document.getElementById('add-product-form');
@@ -1922,11 +1979,29 @@ window.deleteUser = async function(id, nama) {
   } catch(e) { showToast('❌ Gagal: ' + e.message, true); }
 };
 
+window.updateProfitPreview = function() {
+  const jual = parseInt(document.getElementById('new-price').value)||0;
+  const modal = parseInt(document.getElementById('new-modal').value)||0;
+  const wrap = document.getElementById('profit-preview-wrap');
+  if (jual > 0 && modal > 0) {
+    wrap.style.display = 'block';
+    const untung = jual - modal;
+    const pct = modal > 0 ? Math.round((untung/modal)*100) : 0;
+    const el = document.getElementById('profit-preview-val');
+    el.textContent = (untung >= 0 ? '+' : '') + formatRp(untung);
+    el.style.color = untung >= 0 ? 'var(--green)' : 'var(--danger)';
+    document.getElementById('profit-preview-pct').textContent = '(' + pct + '%)';
+  } else {
+    wrap.style.display = 'none';
+  }
+};
+
 window.addProduct = async function() {
   if (currentRole !== 'admin') { showToast('⚠ Hanya admin yang bisa menambah barang!', true); return; }
   const { db, collection, addDoc } = window._fb;
   const name=document.getElementById('new-name').value.trim();
   const price=parseInt(document.getElementById('new-price').value)||0;
+  const modal=parseInt(document.getElementById('new-modal').value)||0;
   const cat=document.getElementById('new-cat').value;
   const emoji=document.getElementById('new-emoji').value.trim()||EMOJI_MAP[cat]||'📦';
   const stock=parseInt(document.getElementById('new-stock').value)||0;
@@ -1934,13 +2009,15 @@ window.addProduct = async function() {
   if(!name){ showToast('⚠ Nama barang wajib diisi!',true); return; }
   if(!price){ showToast('⚠ Harga wajib diisi!',true); return; }
   try {
-    await addDoc(collection(db,'products'), {name,price,cat,emoji,stock,...(barcode?{barcode}:{})});
-    logActivity('barang','📦','Barang Ditambah: '+name, cat+' · Stok: '+stock+' · '+formatRp(price), price);
+    await addDoc(collection(db,'products'), {name,price,modal,cat,emoji,stock,...(barcode?{barcode}:{})});
+    logActivity('barang','📦','Barang Ditambah: '+name, cat+' · Stok: '+stock+' · '+formatRp(price)+(modal?' · Modal: '+formatRp(modal):''), price);
     document.getElementById('new-name').value='';
     document.getElementById('new-price').value='';
+    document.getElementById('new-modal').value='';
     document.getElementById('new-emoji').value='';
     document.getElementById('new-stock').value='';
     document.getElementById('new-barcode').value='';
+    document.getElementById('profit-preview-wrap').style.display='none';
     showToast(`✅ ${name} ditambahkan!`);
   } catch(e){ showToast('❌ Gagal: '+e.message,true); }
 };
@@ -2047,8 +2124,11 @@ window.editProduct = async function(id) {
 
   const newName  = prompt('Nama barang:', p.name);
   if (newName === null) return;
-  const newPrice = prompt('Harga (Rp):', p.price);
+  const newPrice = prompt('Harga Jual (Rp):', p.price);
   if (newPrice === null) return;
+  const newModal = prompt('Harga Modal (Rp):
+(Kosongkan jika tidak ada)', p.modal||'');
+  if (newModal === null) return;
   const newStock = prompt('Stok:', p.stock||0);
   if (newStock === null) return;
   const newEmoji = prompt('Emoji/Ikon:', p.emoji||'📦');
@@ -2056,16 +2136,18 @@ window.editProduct = async function(id) {
 
   const name  = newName.trim() || p.name;
   const price = parseInt(newPrice);
+  const modal = newModal.trim() === '' ? 0 : parseInt(newModal);
   const stock = parseInt(newStock);
   const emoji = newEmoji.trim() || p.emoji;
 
   if (isNaN(price)||price<=0) { showToast('⚠ Harga tidak valid!',true); return; }
   if (isNaN(stock)||stock<0)  { showToast('⚠ Stok tidak valid!',true); return; }
+  if (isNaN(modal)||modal<0)  { showToast('⚠ Harga modal tidak valid!',true); return; }
 
   try {
     const { db, doc, updateDoc } = window._fb;
-    await updateDoc(doc(db,'products',id), { name, price, stock, emoji });
-    logActivity('barang','✏️','Barang Diedit: '+name, 'Harga: '+formatRp(price)+' · Stok: '+stock, price);
+    await updateDoc(doc(db,'products',id), { name, price, modal, stock, emoji });
+    logActivity('barang','✏️','Barang Diedit: '+name, 'Harga: '+formatRp(price)+' · Modal: '+formatRp(modal)+' · Stok: '+stock, price);
     showToast(`✅ "${name}" diperbarui!`);
   } catch(e) { showToast('❌ Gagal: '+e.message,true); }
 };
