@@ -2151,7 +2151,11 @@ window.bayarNanti = async function() {
 };
 
 // ============ DATE FILTER (per halaman) ============
-const filterDates = { riwayat: null, history: null, notepad: null }; // null = semua
+const filterDates = {
+  riwayat: new Date(), // default hari ini
+  history: new Date(), // default hari ini
+  notepad: null        // default semua
+};
 
 function filterDateLabel(d) {
   if (!d) return '📅 Semua';
@@ -2202,10 +2206,19 @@ function matchesFilterDate(timeStr, page) {
   const fd = filterDates[page];
   if (!fd) return true; // semua
   if (!timeStr) return false;
-  const fdStr = fd.toLocaleDateString('id-ID');
-  return timeStr.includes(fdStr.split('/')[0]) &&
-         timeStr.includes(fdStr.split('/')[1]) &&
-         timeStr.includes(fdStr.split('/')[2]);
+  // Parse timeStr yang format id-ID: "5/5/2026, 11.51.33" atau "5/5/2026 11.51.33"
+  try {
+    // Ambil bagian tanggal saja (sebelum koma atau spasi kedua)
+    const datePart = timeStr.split(',')[0].trim(); // "5/5/2026"
+    const parts = datePart.split('/');
+    if (parts.length < 3) return false;
+    const day   = parseInt(parts[0]);
+    const month = parseInt(parts[1]) - 1; // 0-based
+    const year  = parseInt(parts[2]);
+    return fd.getDate() === day &&
+           fd.getMonth() === month &&
+           fd.getFullYear() === year;
+  } catch(e) { return false; }
 }
 
 // ============ KASBON ============
