@@ -989,7 +989,10 @@
       <div class="section-title" style="margin-bottom:14px">Tambah Barang Baru</div>
       <div class="form-group"><label class="form-label">Nama Barang</label><input type="text" class="form-input" id="new-name" placeholder="Contoh: Indomie Goreng"></div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Harga (Rp)</label><input type="number" class="form-input" id="new-price" placeholder="3500"></div>
+        <div class="form-group"><label class="form-label">Harga Jual (Rp)</label><input type="number" class="form-input" id="new-price" placeholder="3500"></div>
+        <div class="form-group"><label class="form-label">Harga Modal (Rp) <span style="color:var(--accent);font-size:10px">👑 Admin</span></label><input type="number" class="form-input" id="new-modal" placeholder="0"></div>
+      </div>
+      <div class="form-row">
         <div class="form-group">
           <label class="form-label">Kategori</label>
           <select class="form-select" id="new-cat">
@@ -1001,9 +1004,9 @@
             <option value="Lainnya">📦 Lainnya</option>
           </select>
         </div>
+        <div class="form-group"><label class="form-label">Emoji / Ikon</label><input type="text" class="form-input" id="new-emoji" placeholder="🍜" maxlength="2"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Emoji / Ikon</label><input type="text" class="form-input" id="new-emoji" placeholder="🍜" maxlength="2"></div>
         <div class="form-group"><label class="form-label">Stok Awal</label><input type="number" class="form-input" id="new-stock" placeholder="0" min="0"></div>
       </div>
       <div class="form-group">
@@ -1781,6 +1784,7 @@ function renderManage() {
       <div class="manage-info">
         <div class="manage-name">${p.name}</div>
         <div class="manage-meta">${p.cat} · <span style="color:${stockColor}">Stok: ${stock}</span>${p.barcode?` · <span style="color:var(--muted);font-size:10px">🔖${p.barcode}</span>`:''}</div>
+        ${isAdmin && p.modal ? `<div style="font-size:10px;margin-top:2px;color:var(--muted)">Modal: ${formatRp(p.modal)} · <span style="color:var(--green)">Untung: ${formatRp(p.price - p.modal)}</span></div>` : ''}
       </div>
       <span class="manage-price">${formatRp(p.price)}</span>
       ${isAdmin ? `<button class="edit-btn" onclick="editProduct('${p.id}')">✏️</button>` : ''}
@@ -1931,13 +1935,15 @@ window.addProduct = async function() {
   const emoji=document.getElementById('new-emoji').value.trim()||EMOJI_MAP[cat]||'📦';
   const stock=parseInt(document.getElementById('new-stock').value)||0;
   const barcode=document.getElementById('new-barcode').value.trim();
+  const modal=parseInt(document.getElementById('new-modal').value)||0;
   if(!name){ showToast('⚠ Nama barang wajib diisi!',true); return; }
   if(!price){ showToast('⚠ Harga wajib diisi!',true); return; }
   try {
-    await addDoc(collection(db,'products'), {name,price,cat,emoji,stock,...(barcode?{barcode}:{})});
+    await addDoc(collection(db,'products'), {name,price,modal,cat,emoji,stock,...(barcode?{barcode}:{})});
     logActivity('barang','📦','Barang Ditambah: '+name, cat+' · Stok: '+stock+' · '+formatRp(price), price);
     document.getElementById('new-name').value='';
     document.getElementById('new-price').value='';
+    document.getElementById('new-modal').value='';
     document.getElementById('new-emoji').value='';
     document.getElementById('new-stock').value='';
     document.getElementById('new-barcode').value='';
@@ -2047,8 +2053,10 @@ window.editProduct = async function(id) {
 
   const newName  = prompt('Nama barang:', p.name);
   if (newName === null) return;
-  const newPrice = prompt('Harga (Rp):', p.price);
+  const newPrice = prompt('Harga Jual (Rp):', p.price);
   if (newPrice === null) return;
+  const newModal = prompt('Harga Modal (Rp):', p.modal||0);
+  if (newModal === null) return;
   const newStock = prompt('Stok:', p.stock||0);
   if (newStock === null) return;
   const newEmoji = prompt('Emoji/Ikon:', p.emoji||'📦');
@@ -2056,6 +2064,7 @@ window.editProduct = async function(id) {
 
   const name  = newName.trim() || p.name;
   const price = parseInt(newPrice);
+  const modal = parseInt(newModal)||0;
   const stock = parseInt(newStock);
   const emoji = newEmoji.trim() || p.emoji;
 
@@ -2064,8 +2073,8 @@ window.editProduct = async function(id) {
 
   try {
     const { db, doc, updateDoc } = window._fb;
-    await updateDoc(doc(db,'products',id), { name, price, stock, emoji });
-    logActivity('barang','✏️','Barang Diedit: '+name, 'Harga: '+formatRp(price)+' · Stok: '+stock, price);
+    await updateDoc(doc(db,'products',id), { name, price, modal, stock, emoji });
+    logActivity('barang','✏️','Barang Diedit: '+name, 'Jual: '+formatRp(price)+' · Modal: '+formatRp(modal)+' · Stok: '+stock, price);
     showToast(`✅ "${name}" diperbarui!`);
   } catch(e) { showToast('❌ Gagal: '+e.message,true); }
 };
