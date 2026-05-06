@@ -623,6 +623,16 @@
   }
   .date-reset-btn:active { background: var(--surface); }
 
+  .cancel-cart-btn {
+    width: 100%; padding: 12px; margin-top: 8px;
+    background: none; border: 1px solid var(--border);
+    color: var(--muted); border-radius: var(--radius); font-size: 14px;
+    font-weight: 600; font-family: 'DM Sans', sans-serif; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .cancel-cart-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .cancel-cart-btn:not(:disabled):active { background: rgba(239,68,68,0.1); color: var(--danger); border-color: var(--danger); }
+
   /* BAYAR NANTI */
   .bayar-nanti-btn {
     width: 100%; padding: 16px; margin-top: 8px;
@@ -1092,6 +1102,7 @@
     </div>
     <button class="bayar-btn" id="bayar-btn" onclick="openBayarModal()" disabled>Bayar Sekarang</button>
     <button class="bayar-nanti-btn" id="bayar-nanti-btn" onclick="bayarNanti()" disabled>⏳ Bayar Nanti</button>
+    <button class="cancel-cart-btn" id="cancel-cart-btn" onclick="cancelCart()" disabled>✕ Batalkan Keranjang</button>
   </div>
 </div>
 
@@ -1743,10 +1754,22 @@ function updateCartUI() {
   document.getElementById('cart-bar').classList.toggle('visible', count>0);
   document.getElementById('cart-count-pill').textContent = count+' item';
   document.getElementById('cart-bar-total').textContent = formatRp(total);
-  // Update bayar nanti button
   const nantiBtn = document.getElementById('bayar-nanti-btn');
   if (nantiBtn) nantiBtn.disabled = count === 0;
+  const cancelBtn = document.getElementById('cancel-cart-btn');
+  if (cancelBtn) cancelBtn.disabled = count === 0;
 }
+
+window.cancelCart = function() {
+  if (!Object.values(cart).some(q=>q>0)) return;
+  if (!confirm('Batalkan semua barang di keranjang?')) return;
+  cart = {};
+  window._cartBatangan = {};
+  renderProducts();
+  updateCartUI();
+  document.getElementById('cart-modal').classList.remove('open');
+  showToast('🗑 Keranjang dikosongkan');
+};
 function getCartTotal() {
   let total = 0;
   for (const [id, qty] of Object.entries(cart).filter(([,q])=>q>0)) {
