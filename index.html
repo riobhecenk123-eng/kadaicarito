@@ -597,6 +597,17 @@
   .date-bar.modified { background: rgba(255,107,53,0.1); border-bottom-color: rgba(255,107,53,0.3); }
   .date-bar.modified .date-bar-text { color: var(--accent); }
 
+  /* BAYAR NANTI */
+  .bayar-nanti-btn {
+    width: 100%; padding: 16px; margin-top: 8px;
+    background: rgba(72,149,239,0.15); border: 1px solid rgba(72,149,239,0.4);
+    color: var(--blue); border-radius: var(--radius); font-size: 16px;
+    font-weight: 800; font-family: 'Syne', sans-serif; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .bayar-nanti-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .bayar-nanti-btn:not(:disabled):active { transform: scale(0.98); }
+
   /* NOTEPAD */
   .note-color-btn {
     width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
@@ -1024,6 +1035,7 @@
       <div class="summary-row total"><span>Total</span><span id="sum-total">Rp 0</span></div>
     </div>
     <button class="bayar-btn" id="bayar-btn" onclick="openBayarModal()" disabled>Bayar Sekarang</button>
+    <button class="bayar-nanti-btn" id="bayar-nanti-btn" onclick="bayarNanti()" disabled>⏳ Bayar Nanti</button>
   </div>
 </div>
 
@@ -1546,6 +1558,9 @@ function updateCartUI() {
   document.getElementById('cart-bar').classList.toggle('visible', count>0);
   document.getElementById('cart-count-pill').textContent = count+' item';
   document.getElementById('cart-bar-total').textContent = formatRp(total);
+  // Update bayar nanti button
+  const nantiBtn = document.getElementById('bayar-nanti-btn');
+  if (nantiBtn) nantiBtn.disabled = count === 0;
 }
 function getCartTotal() {
   return Object.entries(cart).filter(([,q])=>q>0).reduce((s,[id,q])=>{ const p=products.find(x=>x.id===id); return s+(p?p.price*q:0); },0);
@@ -2039,6 +2054,50 @@ window.applyDate = function() {
 };
 // Init date bar
 updateDateBar();
+
+window.bayarNanti = async function() {
+  if (!requireLogin()) return;
+  const { db, collection, addDoc, serverTimestamp } = window._fb;
+
+  const cartItems = Object.entries(cart).filter(([,q])=>q>0);
+  if (!cartItems.length) { showToast('⚠ Keranjang kosong!', true); return; }
+
+  const nama = prompt('Nama pelanggan yang bayar nanti:');
+  if (!nama || !nama.trim()) return;
+
+  const items = cartItems.map(([id,qty]) => {
+    const p = products.find(x=>x.id===id);
+    return { name: p.name, emoji: p.emoji, qty, price: p.price, subtotal: p.price*qty };
+  });
+  const totalHutang = getCartTotal();
+  const keterangan = items.map(i=>`${i.emoji} ${i.name} ×${i.qty}`).join(', ');
+
+  try {
+    await addDoc(collection(db, 'kasbon'), {
+      nama: nama.trim(), totalHutang, sisaHutang: totalHutang,
+      keterangan, items, status: 'hutang', cicilan: [],
+      kasir: currentNama || currentRole || '?',
+      timeStr: activeDate.toLocaleString('id-ID'),
+      createdAt: serverTimestamp()
+    });
+    logActivity('kasbon','📒','Bayar Nanti: '+nama.trim(), keterangan, totalHutang);
+
+    // Kurangi stok
+    for (const [id, qty] of cartItems) {
+      const { doc, updateDoc, increment } = window._fb;
+      await updateDoc(doc(db,'products',id), { stock: increment(-qty) });
+    }
+
+    // Kosongkan keranjang
+    cart = {};
+    renderProducts(); updateCartUI();
+    document.getElementById('cart-modal').classList.remove('open');
+    showToast('📒 Kasbon '+nama.trim()+' disimpan! Total: '+formatRp(totalHutang));
+
+    // Pindah ke tab Kasbon
+    setTimeout(() => switchTab('kasbon'), 800);
+  } catch(e) { showToast('❌ Gagal: '+e.message, true); }
+};
 
 // ============ KASBON ============
 let kasbonMode = 'barang'; // 'barang' | 'manual'
