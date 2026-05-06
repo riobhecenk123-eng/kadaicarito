@@ -1557,6 +1557,32 @@ function renderActivityList() {
 let batanganProductId = null;
 let modeBatangan = false;
 
+window.setBatangan = async function(id) {
+  if (currentRole !== 'admin') return;
+  const { db, doc, updateDoc } = window._fb;
+  const p = products.find(x=>x.id===id);
+  if (!p) return;
+
+  const isi = prompt(`Isi per bungkus "${p.name}" (batang):\nContoh: 16 untuk rokok 16 batang`, p.isiBungkus||'');
+  if (isi === null) return;
+  const harga = prompt(`Harga per batang "${p.name}" (Rp):`, p.hargaBatang||'');
+  if (harga === null) return;
+
+  const isiBungkus = parseInt(isi);
+  const hargaBatang = parseInt(harga);
+
+  if (!isiBungkus || isiBungkus < 1) { showToast('⚠ Isi per bungkus tidak valid!', true); return; }
+  if (!hargaBatang || hargaBatang < 1) { showToast('⚠ Harga batang tidak valid!', true); return; }
+
+  // Hitung stok batang dari stok bungkus yang ada
+  const stokBatang = (p.stokBatang !== undefined && p.stokBatang > 0) ? p.stokBatang : (p.stock || 0) * isiBungkus;
+
+  try {
+    await updateDoc(doc(db,'products',id), { isiBungkus, hargaBatang, stokBatang });
+    showToast(`✅ ${p.name} — ${isiBungkus} btg/bungkus · ${formatRp(hargaBatang)}/btg`);
+  } catch(e) { showToast('❌ Gagal: '+e.message, true); }
+};
+
 window.toggleBatanganField = function() {
   const cat = document.getElementById('new-cat').value;
   const el = document.getElementById('batangan-fields');
@@ -1909,8 +1935,11 @@ function renderManage() {
         <div class="manage-name">${p.name}</div>
         <div class="manage-meta">${p.cat} · <span style="color:${stockColor}">Stok: ${stock}</span>${p.barcode?` · <span style="color:var(--muted);font-size:10px">🔖${p.barcode}</span>`:''}</div>
         ${isAdmin && p.modal ? `<div style="font-size:10px;margin-top:2px;color:var(--muted)">Modal: ${formatRp(p.modal)} · <span style="color:var(--green)">Untung: ${formatRp(p.price - p.modal)}</span></div>` : ''}
+        ${p.cat==='Rokok' && p.hargaBatang ? `<div style="font-size:10px;margin-top:2px;color:var(--blue)">🚬 Batangan: ${formatRp(p.hargaBatang)}/btg · Isi: ${p.isiBungkus||'?'} btg · Stok btg: ${p.stokBatang||0}</div>` : ''}
+        ${p.cat==='Rokok' && !p.hargaBatang && isAdmin ? `<div style="font-size:10px;margin-top:2px;color:var(--muted)">🚬 Belum ada harga batangan</div>` : ''}
       </div>
       <span class="manage-price">${formatRp(p.price)}</span>
+      ${isAdmin && p.cat==='Rokok' ? `<button class="edit-btn" style="background:rgba(72,149,239,0.15);border-color:rgba(72,149,239,0.3);color:var(--blue)" onclick="setBatangan('${p.id}')">🚬</button>` : ''}
       ${isAdmin ? `<button class="edit-btn" onclick="editProduct('${p.id}')">✏️</button>` : ''}
       ${isAdmin ? `<button class="delete-btn" onclick="deleteProduct('${p.id}')">🗑</button>` : ''}
     </div>`;
