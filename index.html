@@ -2044,19 +2044,29 @@ window.editProduct = async function(id) {
   if (currentRole !== 'admin') return;
   const p = products.find(x=>x.id===id);
   if (!p) return;
-  const newPrice = prompt(`Harga baru untuk "${p.name}" (sekarang: ${formatRp(p.price)}):`, p.price);
+
+  const newName  = prompt('Nama barang:', p.name);
+  if (newName === null) return;
+  const newPrice = prompt('Harga (Rp):', p.price);
   if (newPrice === null) return;
-  const newStock = prompt(`Stok baru untuk "${p.name}" (sekarang: ${p.stock||0}):`, p.stock||0);
+  const newStock = prompt('Stok:', p.stock||0);
   if (newStock === null) return;
+  const newEmoji = prompt('Emoji/Ikon:', p.emoji||'📦');
+  if (newEmoji === null) return;
+
+  const name  = newName.trim() || p.name;
   const price = parseInt(newPrice);
   const stock = parseInt(newStock);
+  const emoji = newEmoji.trim() || p.emoji;
+
   if (isNaN(price)||price<=0) { showToast('⚠ Harga tidak valid!',true); return; }
-  if (isNaN(stock)||stock<0) { showToast('⚠ Stok tidak valid!',true); return; }
+  if (isNaN(stock)||stock<0)  { showToast('⚠ Stok tidak valid!',true); return; }
+
   try {
     const { db, doc, updateDoc } = window._fb;
-    await updateDoc(doc(db,'products',id), { price, stock });
-    logActivity('barang','✏️','Barang Diedit: '+p.name, 'Harga: '+formatRp(price)+' · Stok: '+stock, price);
-    showToast(`✅ "${p.name}" diperbarui!`);
+    await updateDoc(doc(db,'products',id), { name, price, stock, emoji });
+    logActivity('barang','✏️','Barang Diedit: '+name, 'Harga: '+formatRp(price)+' · Stok: '+stock, price);
+    showToast(`✅ "${name}" diperbarui!`);
   } catch(e) { showToast('❌ Gagal: '+e.message,true); }
 };
 
