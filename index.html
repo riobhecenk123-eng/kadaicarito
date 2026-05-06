@@ -995,7 +995,7 @@
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Kategori</label>
-          <select class="form-select" id="new-cat">
+          <select class="form-select" id="new-cat" onchange="toggleBatanganField()">
             <option value="Makanan">🍜 Makanan</option>
             <option value="Minuman">🥤 Minuman</option>
             <option value="Snack">🍿 Snack</option>
@@ -1007,7 +1007,16 @@
         <div class="form-group"><label class="form-label">Emoji / Ikon</label><input type="text" class="form-input" id="new-emoji" placeholder="🍜" maxlength="2"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Stok Awal</label><input type="number" class="form-input" id="new-stock" placeholder="0" min="0"></div>
+        <div class="form-group"><label class="form-label">Stok Awal (bungkus)</label><input type="number" class="form-input" id="new-stock" placeholder="0" min="0"></div>
+      </div>
+      <!-- ROKOK BATANGAN (muncul kalau kategori Rokok) -->
+      <div id="batangan-fields" style="display:none;background:rgba(255,107,53,0.08);border:1px solid rgba(255,107,53,0.2);border-radius:var(--radius-sm);padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:10px;font-family:'Syne',sans-serif">🚬 Opsi Jual Batangan</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Isi per Bungkus (batang)</label><input type="number" class="form-input" id="new-isi-bungkus" placeholder="16" min="1"></div>
+          <div class="form-group"><label class="form-label">Harga per Batang (Rp)</label><input type="number" class="form-input" id="new-harga-batang" placeholder="2000"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted)">Kosongkan jika tidak jual batangan</div>
       </div>
       <div class="form-group">
         <label class="form-label">Barcode (opsional)</label>
@@ -1116,6 +1125,25 @@
     </div>
     <button class="pin-submit-btn" onclick="applyDate()">✅ Pakai Tanggal Ini</button>
     <button class="pin-cancel-btn" onclick="closeDatePicker()">Batal</button>
+  </div>
+</div>
+
+<!-- BATANGAN MODAL -->
+<div class="pin-modal-overlay" id="batangan-modal">
+  <div class="pin-modal-box">
+    <div class="pin-title" id="batangan-modal-title">🚬 Pilih Cara Beli</div>
+    <div class="pin-sub" id="batangan-modal-sub">Beli bungkus atau batangan?</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
+      <button class="pin-submit-btn" style="background:var(--accent)" onclick="pilihBungkus()">📦 Beli Bungkus</button>
+      <button class="pin-submit-btn" style="background:rgba(72,149,239,0.8)" onclick="pilihBatangan()">🚬 Beli Batangan</button>
+    </div>
+    <div id="batangan-qty-row" style="display:none;margin-bottom:10px">
+      <label class="form-label">Jumlah Batang</label>
+      <input type="number" class="form-input" id="batangan-qty-input" placeholder="1" min="1" style="margin-top:6px;text-align:center;font-size:18px">
+      <div id="batangan-info" style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center"></div>
+      <button class="pin-submit-btn" style="margin-top:10px" onclick="konfirmasiBatangan()">✅ Tambah ke Keranjang</button>
+    </div>
+    <button class="pin-cancel-btn" onclick="closeBatanganModal()">Batal</button>
   </div>
 </div>
 
@@ -1525,6 +1553,85 @@ function renderActivityList() {
     </div>`).join('');
 }
 
+// ============ ROKOK BATANGAN ============
+let batanganProductId = null;
+let modeBatangan = false;
+
+window.toggleBatanganField = function() {
+  const cat = document.getElementById('new-cat').value;
+  const el = document.getElementById('batangan-fields');
+  if (el) el.style.display = cat === 'Rokok' ? 'block' : 'none';
+};
+
+window.openBatanganModal = function(id) {
+  if (!requireLogin()) return;
+  const p = products.find(x=>x.id===id);
+  if (!p) return;
+  batanganProductId = id;
+  modeBatangan = false;
+  document.getElementById('batangan-modal-title').textContent = '🚬 ' + p.name;
+  document.getElementById('batangan-modal-sub').textContent = `Bungkus ${formatRp(p.price)} · Batangan ${formatRp(p.hargaBatang)}/btg`;
+  document.getElementById('batangan-qty-row').style.display = 'none';
+  document.getElementById('batangan-modal').classList.add('open');
+};
+
+window.closeBatanganModal = function() {
+  document.getElementById('batangan-modal').classList.remove('open');
+  batanganProductId = null;
+};
+
+window.pilihBungkus = function() {
+  const id = batanganProductId;
+  closeBatanganModal();
+  if (id) addToCart(id);
+};
+
+window.pilihBatangan = function() {
+  modeBatangan = true;
+  const p = products.find(x=>x.id===batanganProductId);
+  if (!p) return;
+  const stokBatang = p.stokBatang !== undefined ? p.stokBatang : (p.stock * (p.isiBungkus||1));
+  document.getElementById('batangan-qty-row').style.display = 'block';
+  document.getElementById('batangan-qty-input').value = '1';
+  document.getElementById('batangan-qty-input').max = stokBatang;
+  document.getElementById('batangan-info').textContent = `Stok: ${stokBatang} batang · Harga: ${formatRp(p.hargaBatang)}/btg`;
+  // Sembunyikan tombol pilih
+  document.querySelectorAll('#batangan-modal .pin-submit-btn').forEach((b,i) => { if(i<2) b.style.display='none'; });
+};
+
+window.konfirmasiBatangan = async function() {
+  const p = products.find(x=>x.id===batanganProductId);
+  if (!p) return;
+  const qty = parseInt(document.getElementById('batangan-qty-input').value)||1;
+  const stokBatang = p.stokBatang !== undefined ? p.stokBatang : (p.stock * (p.isiBungkus||1));
+  if (qty < 1) { showToast('⚠ Jumlah minimal 1!', true); return; }
+  if (qty > stokBatang) { showToast('⚠ Stok batang tidak cukup! Sisa: '+stokBatang, true); return; }
+
+  // Tambah ke cart sebagai item batangan dengan id unik
+  const batanganId = batanganProductId + '_btg';
+  // Simpan info batangan di cart special
+  if (!window._cartBatangan) window._cartBatangan = {};
+  window._cartBatangan[batanganId] = {
+    productId: batanganProductId,
+    name: p.name + ' (Batangan)',
+    emoji: p.emoji,
+    price: p.hargaBatang,
+    qty,
+    isBatangan: true
+  };
+  cart[batanganId] = qty;
+
+  // Kurangi stok batang di Firebase
+  const { db, doc, updateDoc, increment } = window._fb;
+  try {
+    await updateDoc(doc(db,'products',batanganProductId), { stokBatang: increment(-qty) });
+  } catch(e) {}
+
+  closeBatanganModal();
+  updateCartUI();
+  showToast(`✅ ${qty} batang ${p.name} ditambahkan!`);
+};
+
 // ============ REQUIRE LOGIN ============
 function requireLogin() {
   if (!currentRole) {
@@ -1576,11 +1683,14 @@ function renderProducts() {
     const stock = p.stock !== undefined ? p.stock : 0;
     const outOfStock = stock <= 0;
     const stockColor = stock <= 5 ? 'var(--danger)' : stock <= 10 ? 'var(--accent2)' : 'var(--green)';
-    return `<div class="product-card${qty>0?' in-cart':''}${outOfStock?' out-of-stock':''}" onclick="${outOfStock?'showToast(\'⚠ Stok habis!\',true)':'addToCart(\''+p.id+'\')'}" id="pcard-${p.id}">
+    const hasBatangan = p.cat === 'Rokok' && p.hargaBatang > 0;
+    const stokBatang = p.stokBatang !== undefined ? p.stokBatang : 0;
+    return `<div class="product-card${qty>0?' in-cart':''}${outOfStock&&!hasBatangan?' out-of-stock':''}" onclick="${outOfStock&&!hasBatangan?'showToast(\'⚠ Stok habis!\',true)':hasBatangan?'openBatanganModal(\''+p.id+'\')':'addToCart(\''+p.id+'\')'}" id="pcard-${p.id}">
       <span class="product-emoji">${p.emoji}</span>
       <div class="product-name">${p.name}</div>
       <div class="product-price">${formatRp(p.price)}</div>
-      <div class="product-stock" style="color:${stockColor}">📦 Stok: ${outOfStock?'<b>Habis</b>':stock}</div>
+      <div class="product-stock" style="color:${stockColor}">📦 Stok: ${outOfStock?'<b>Habis</b>':stock} bungkus${hasBatangan?` · 🚬 ${stokBatang} btg`:''}</div>
+      ${hasBatangan?`<div style="font-size:10px;color:var(--blue);margin-top:2px">Batangan: ${formatRp(p.hargaBatang)}/btg</div>`:''}
       <div class="product-qty-badge" id="pbadge-${p.id}">${qty||''}</div>
     </div>`;
   }).join('');
@@ -1612,7 +1722,16 @@ function updateCartUI() {
   if (nantiBtn) nantiBtn.disabled = count === 0;
 }
 function getCartTotal() {
-  return Object.entries(cart).filter(([,q])=>q>0).reduce((s,[id,q])=>{ const p=products.find(x=>x.id===id); return s+(p?p.price*q:0); },0);
+  let total = 0;
+  for (const [id, qty] of Object.entries(cart).filter(([,q])=>q>0)) {
+    if (window._cartBatangan && window._cartBatangan[id]) {
+      total += window._cartBatangan[id].price * qty;
+    } else {
+      const p = products.find(x=>x.id===id);
+      if (p) total += p.price * qty;
+    }
+  }
+  return total;
 }
 window.openCartModal = function() { renderCartModal(); document.getElementById('cart-modal').classList.add('open'); };
 window.closeCartModal = function() { document.getElementById('cart-modal').classList.remove('open'); };
@@ -1689,6 +1808,10 @@ window.konfirmasiBayar = async function() {
   const total=getCartTotal(), bayar=parseInt(document.getElementById('bayar-input').value)||0;
   const kembalian=bayar-total;
   const txItems=Object.entries(cart).filter(([,q])=>q>0).map(([id,qty])=>{
+    if (window._cartBatangan && window._cartBatangan[id]) {
+      const b = window._cartBatangan[id];
+      return { name:b.name, emoji:b.emoji, qty, price:b.price, subtotal:b.price*qty, isBatangan:true };
+    }
     const p=products.find(x=>x.id===id);
     return { name:p.name, emoji:p.emoji, qty, price:p.price, subtotal:p.price*qty };
   });
@@ -1707,6 +1830,7 @@ window.konfirmasiBayar = async function() {
       await updateDoc(ref, { stock: increment(-qty) });
     }
     cart={};
+    window._cartBatangan = {};
     renderProducts(); updateCartUI();
     document.getElementById('bayar-modal').classList.remove('open');
     document.getElementById('konfirmasi-btn').disabled=false;
@@ -1936,10 +2060,18 @@ window.addProduct = async function() {
   const stock=parseInt(document.getElementById('new-stock').value)||0;
   const barcode=document.getElementById('new-barcode').value.trim();
   const modal=parseInt(document.getElementById('new-modal').value)||0;
+  const isiBungkus=parseInt(document.getElementById('new-isi-bungkus')?.value)||0;
+  const hargaBatang=parseInt(document.getElementById('new-harga-batang')?.value)||0;
   if(!name){ showToast('⚠ Nama barang wajib diisi!',true); return; }
   if(!price){ showToast('⚠ Harga wajib diisi!',true); return; }
+  const prodData = {name,price,modal,cat,emoji,stock,...(barcode?{barcode}:{})};
+  if(cat==='Rokok' && isiBungkus>0 && hargaBatang>0) {
+    prodData.isiBungkus = isiBungkus;
+    prodData.hargaBatang = hargaBatang;
+    prodData.stokBatang = stock * isiBungkus; // stok batang awal
+  }
   try {
-    await addDoc(collection(db,'products'), {name,price,modal,cat,emoji,stock,...(barcode?{barcode}:{})});
+    await addDoc(collection(db,'products'), prodData);
     logActivity('barang','📦','Barang Ditambah: '+name, cat+' · Stok: '+stock+' · '+formatRp(price), price);
     document.getElementById('new-name').value='';
     document.getElementById('new-price').value='';
@@ -1947,6 +2079,8 @@ window.addProduct = async function() {
     document.getElementById('new-emoji').value='';
     document.getElementById('new-stock').value='';
     document.getElementById('new-barcode').value='';
+    if(document.getElementById('new-isi-bungkus')) document.getElementById('new-isi-bungkus').value='';
+    if(document.getElementById('new-harga-batang')) document.getElementById('new-harga-batang').value='';
     showToast(`✅ ${name} ditambahkan!`);
   } catch(e){ showToast('❌ Gagal: '+e.message,true); }
 };
