@@ -597,6 +597,32 @@
   .date-bar.modified { background: rgba(255,107,53,0.1); border-bottom-color: rgba(255,107,53,0.3); }
   .date-bar.modified .date-bar-text { color: var(--accent); }
 
+  /* DATE FILTER BAR */
+  .date-filter-bar {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 14px;
+  }
+  .date-nav-btn {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    width: 32px; height: 32px; border-radius: 8px; font-size: 16px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s;
+  }
+  .date-nav-btn:active { background: var(--border); }
+  .date-filter-label {
+    flex: 1; text-align: center; font-size: 13px; font-weight: 700;
+    font-family: 'Syne', sans-serif; color: var(--accent2); cursor: pointer;
+    padding: 4px 8px; border-radius: 6px; transition: background 0.2s;
+  }
+  .date-filter-label:active { background: var(--surface); }
+  .date-reset-btn {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer;
+    white-space: nowrap; flex-shrink: 0;
+  }
+  .date-reset-btn:active { background: var(--surface); }
+
   /* BAYAR NANTI */
   .bayar-nanti-btn {
     width: 100%; padding: 16px; margin-top: 8px;
@@ -838,8 +864,14 @@
 
   <!-- RIWAYAT -->
   <div class="page" id="page-riwayat">
+    <div class="date-filter-bar">
+      <button class="date-nav-btn" onclick="changeFilterDate('riwayat',-1)">‹</button>
+      <div class="date-filter-label" id="riwayat-date-label" onclick="pickFilterDate('riwayat')">📅 Hari Ini</div>
+      <button class="date-nav-btn" onclick="changeFilterDate('riwayat',1)">›</button>
+      <button class="date-reset-btn" onclick="resetFilterDate('riwayat')">Reset</button>
+    </div>
     <div class="stats-grid">
-      <div class="stat-card"><div class="stat-label">Total Hari Ini</div><div class="stat-value green" id="stat-today">Rp 0</div></div>
+      <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value green" id="stat-today">Rp 0</div></div>
       <div class="stat-card"><div class="stat-label">Transaksi</div><div class="stat-value accent" id="stat-count">0</div></div>
       <div class="stat-card"><div class="stat-label">Item Terjual</div><div class="stat-value" id="stat-items">0</div></div>
       <div class="stat-card"><div class="stat-label">Rata-rata</div><div class="stat-value" id="stat-avg">Rp 0</div></div>
@@ -850,6 +882,12 @@
 
   <!-- NOTEPAD -->
   <div class="page" id="page-notepad">
+    <div class="date-filter-bar">
+      <button class="date-nav-btn" onclick="changeFilterDate('notepad',-1)">‹</button>
+      <div class="date-filter-label" id="notepad-date-label" onclick="pickFilterDate('notepad')">📅 Semua</div>
+      <button class="date-nav-btn" onclick="changeFilterDate('notepad',1)">›</button>
+      <button class="date-reset-btn" onclick="resetFilterDate('notepad')">Semua</button>
+    </div>
     <div class="section-title" style="margin-bottom:14px">📝 Catatan Harian</div>
 
     <!-- Form tambah catatan -->
@@ -883,6 +921,12 @@
 
   <!-- AKTIVITAS / HISTORY -->
   <div class="page" id="page-history">
+    <div class="date-filter-bar">
+      <button class="date-nav-btn" onclick="changeFilterDate('history',-1)">‹</button>
+      <div class="date-filter-label" id="history-date-label" onclick="pickFilterDate('history')">📅 Hari Ini</div>
+      <button class="date-nav-btn" onclick="changeFilterDate('history',1)">›</button>
+      <button class="date-reset-btn" onclick="resetFilterDate('history')">Semua</button>
+    </div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-label">Total Aktivitas</div><div class="stat-value accent" id="activity-total">0</div></div>
       <div class="stat-card"><div class="stat-label">Hari Ini</div><div class="stat-value" id="activity-today">0</div></div>
@@ -1338,11 +1382,13 @@ window.setNoteColor = function(color) {
 };
 
 function renderNotes() {
+  updateFilterLabel('notepad');
   const list = document.getElementById('note-list');
   if (!list) return;
-  const notes = window._notes || [];
+  const allNotes = window._notes || [];
+  const notes = filterDates['notepad'] ? allNotes.filter(n => matchesFilterDate(n.timeStr, 'notepad')) : allNotes;
   if (!notes.length) {
-    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">📝 Belum ada catatan</div>';
+    list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted)">📝 ${filterDates['notepad'] ? 'Tidak ada catatan di tanggal ini' : 'Belum ada catatan'}</div>`;
     return;
   }
   list.innerHTML = notes.map(n => `
@@ -1437,31 +1483,31 @@ window.setActivityFilter = function(filter) {
 };
 
 function renderActivityList() {
+  updateFilterLabel('history');
   const list = document.getElementById('activity-list');
   if (!list) return;
   const all = window._activities || [];
 
+  // Filter tanggal
+  const dateFiltered = filterDates['history'] ? all.filter(a => matchesFilterDate(a.timeStr, 'history')) : all;
+
   // Update stats
-  const todayStr = new Date().toLocaleDateString('id-ID');
-  const todayCount = all.filter(a => a.timeStr && a.timeStr.startsWith(todayStr.split('/')[0])).length;
   const el = document.getElementById('activity-total');
   const el2 = document.getElementById('activity-today');
-  if (el) el.textContent = all.length;
-  if (el2) el2.textContent = all.filter(a => {
-    if (!a.timeStr) return false;
-    const d = new Date(); const t = d.toLocaleDateString('id-ID');
-    return a.timeStr.includes(t.split('/')[2]) && a.timeStr.includes(t.split('/')[1]);
-  }).length;
+  if (el) el.textContent = dateFiltered.length;
+  if (el2) {
+    const todayStr = new Date().toLocaleDateString('id-ID');
+    if (el2) el2.textContent = all.filter(a => a.timeStr && matchesFilterDate(a.timeStr, 'history') && !filterDates['history'] ? a.timeStr.includes(todayStr.split('/')[2]) : true).length;
+  }
 
-  const filtered = activityFilter === 'semua' ? all : all.filter(a => a.type === activityFilter || (activityFilter === 'kasbon' && (a.type === 'kasbon' || a.type === 'kasbon-bayar')));
+  const filtered = activityFilter === 'semua' ? dateFiltered : dateFiltered.filter(a => a.type === activityFilter || (activityFilter === 'kasbon' && (a.type === 'kasbon' || a.type === 'kasbon-bayar')));
 
   if (!filtered.length) {
-    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">🕓 Belum ada aktivitas</div>';
+    list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--muted)">🕓 ${filterDates['history'] ? 'Tidak ada aktivitas di tanggal ini' : 'Belum ada aktivitas'}</div>`;
     return;
   }
 
   const colorMap = { transaksi: 'var(--green)', kasbon: 'var(--danger)', 'kasbon-bayar': 'var(--accent2)', barang: 'var(--blue)', akun: 'var(--muted)' };
-
   list.innerHTML = filtered.map(a => `
     <div class="activity-item ${a.type}">
       <div class="activity-icon">${a.icon}</div>
@@ -1675,24 +1721,29 @@ window.konfirmasiBayar = async function() {
 
 // ============ HISTORY ============
 function renderHistory() {
-  const today = new Date().toLocaleDateString('id-ID');
-  const todayTx = transactions.filter(t => {
-    if (!t.createdAt) return false;
-    const d = t.createdAt.toDate ? t.createdAt.toDate() : new Date(t.createdAt);
-    return d.toLocaleDateString('id-ID')===today;
-  });
-  const todayTotal=todayTx.reduce((s,t)=>s+t.total,0);
-  const allItems=todayTx.reduce((s,t)=>s+t.items.reduce((a,i)=>a+i.qty,0),0);
-  document.getElementById('stat-today').textContent=formatRp(todayTotal);
-  document.getElementById('stat-count').textContent=todayTx.length;
-  document.getElementById('stat-items').textContent=allItems;
-  document.getElementById('stat-avg').textContent=todayTx.length>0?formatRp(Math.round(todayTotal/todayTx.length)):'Rp 0';
-  const list=document.getElementById('history-list');
-  if(!transactions.length){ list.innerHTML=`<div class="no-history"><span>📋</span>Belum ada transaksi</div>`; return; }
-  list.innerHTML=transactions.map((tx,i)=>`
+  updateFilterLabel('riwayat');
+  const fd = filterDates['riwayat'];
+
+  // Filter transaksi sesuai tanggal
+  const filtered = fd ? transactions.filter(t => matchesFilterDate(t.timeStr, 'riwayat')) : transactions;
+
+  // Stats dari data terfilter
+  const totalVal = filtered.reduce((s,t)=>s+t.total,0);
+  const allItems = filtered.reduce((s,t)=>s+t.items.reduce((a,i)=>a+i.qty,0),0);
+  document.getElementById('stat-today').textContent = formatRp(totalVal);
+  document.getElementById('stat-count').textContent = filtered.length;
+  document.getElementById('stat-items').textContent = allItems;
+  document.getElementById('stat-avg').textContent = filtered.length>0 ? formatRp(Math.round(totalVal/filtered.length)) : 'Rp 0';
+
+  const list = document.getElementById('history-list');
+  if (!filtered.length) {
+    list.innerHTML = `<div class="no-history"><span>📋</span>${fd ? 'Tidak ada transaksi di tanggal ini' : 'Belum ada transaksi'}</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map((tx,i) => `
     <div class="transaction-card">
       <div class="trans-header">
-        <span class="trans-id">🧾 #${transactions.length-i}</span>
+        <span class="trans-id">🧾 #${i+1}</span>
         <span class="trans-time">${tx.timeStr||''}</span>
       </div>
       <div class="trans-items">${tx.items.map(it=>`${it.emoji} ${it.name} ×${it.qty}`).join(' · ')}</div>
@@ -2098,6 +2149,64 @@ window.bayarNanti = async function() {
     setTimeout(() => switchTab('kasbon'), 800);
   } catch(e) { showToast('❌ Gagal: '+e.message, true); }
 };
+
+// ============ DATE FILTER (per halaman) ============
+const filterDates = { riwayat: null, history: null, notepad: null }; // null = semua
+
+function filterDateLabel(d) {
+  if (!d) return '📅 Semua';
+  const today = new Date();
+  const isToday = d.toDateString() === today.toDateString();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate()-1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  if (isToday) return '📅 Hari Ini';
+  if (isYesterday) return '📅 Kemarin';
+  return '📅 ' + d.toLocaleDateString('id-ID', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function updateFilterLabel(page) {
+  const el = document.getElementById(page+'-date-label');
+  if (el) el.textContent = filterDateLabel(filterDates[page]);
+}
+
+window.changeFilterDate = function(page, dir) {
+  const current = filterDates[page] || new Date();
+  const d = new Date(current);
+  d.setDate(d.getDate() + dir);
+  filterDates[page] = d;
+  updateFilterLabel(page);
+  if (page === 'riwayat') renderHistory();
+  if (page === 'history') renderActivityList();
+  if (page === 'notepad') renderNotes();
+};
+
+window.pickFilterDate = function(page) {
+  const val = prompt('Masukkan tanggal (YYYY-MM-DD):', filterDates[page] ? filterDates[page].toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+  if (!val) return;
+  filterDates[page] = new Date(val + 'T00:00:00');
+  updateFilterLabel(page);
+  if (page === 'riwayat') renderHistory();
+  if (page === 'history') renderActivityList();
+  if (page === 'notepad') renderNotes();
+};
+
+window.resetFilterDate = function(page) {
+  filterDates[page] = null;
+  updateFilterLabel(page);
+  if (page === 'riwayat') renderHistory();
+  if (page === 'history') renderActivityList();
+  if (page === 'notepad') renderNotes();
+};
+
+function matchesFilterDate(timeStr, page) {
+  const fd = filterDates[page];
+  if (!fd) return true; // semua
+  if (!timeStr) return false;
+  const fdStr = fd.toLocaleDateString('id-ID');
+  return timeStr.includes(fdStr.split('/')[0]) &&
+         timeStr.includes(fdStr.split('/')[1]) &&
+         timeStr.includes(fdStr.split('/')[2]);
+}
 
 // ============ KASBON ============
 let kasbonMode = 'barang'; // 'barang' | 'manual'
