@@ -623,6 +623,35 @@
   }
   .date-reset-btn:active { background: var(--surface); }
 
+  /* STOK ALERT */
+  .stok-alert-dot {
+    background: var(--danger); color: white; font-size: 9px; font-weight: 900;
+    width: 16px; height: 16px; border-radius: 50%; display: inline-flex;
+    align-items: center; justify-content: center; margin-left: 2px;
+    font-family: 'Syne', sans-serif; animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .stok-item {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 8px;
+    border-left: 4px solid transparent;
+  }
+  .stok-item.habis { border-left-color: var(--danger); background: rgba(239,68,68,0.05); }
+  .stok-item.tipis { border-left-color: var(--accent2); background: rgba(255,209,102,0.05); }
+  .stok-item.aman  { border-left-color: var(--green); }
+  .stok-item-emoji { font-size: 24px; flex-shrink: 0; }
+  .stok-item-info  { flex: 1; min-width: 0; }
+  .stok-item-name  { font-weight: 700; font-size: 14px; font-family: 'Syne', sans-serif; }
+  .stok-item-cat   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .stok-item-num   { font-size: 20px; font-weight: 800; font-family: 'Syne', sans-serif; flex-shrink: 0; }
+  .stok-tambah-btn {
+    background: rgba(6,214,106,0.15); border: 1px solid rgba(6,214,106,0.3);
+    color: var(--green); border-radius: 8px; padding: 6px 10px;
+    font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+    font-family: 'Syne', sans-serif;
+  }
+
   .cancel-cart-btn {
     width: 100%; padding: 12px; margin-top: 8px;
     background: none; border: 1px solid var(--border);
@@ -845,6 +874,7 @@
     <div class="tab" onclick="switchTab('kasbon')"><span class="tab-icon">📒</span>Kasbon</div>
     <div class="tab" onclick="switchTab('history')"><span class="tab-icon">🕓</span>Aktivitas</div>
     <div class="tab" onclick="switchTab('notepad')"><span class="tab-icon">📝</span>Notepad</div>
+    <div class="tab" onclick="switchTab('stok')"><span class="tab-icon">📦</span>Stok <span class="stok-alert-dot" id="stok-alert-dot" style="display:none">!</span></div>
     <div class="tab" onclick="switchTab('kelola')"><span class="tab-icon">⚙️</span>Kelola</div>
   </div>
 
@@ -857,6 +887,15 @@
         <div style="font-size:13px;font-weight:700;font-family:'Syne',sans-serif;color:var(--accent)">Login diperlukan</div>
         <div style="font-size:11px;color:var(--muted)">Tap di sini untuk login sebelum transaksi</div>
       </div>
+    </div>
+    <!-- Stok alert banner -->
+    <div id="stok-alert-banner" style="display:none;align-items:center;gap:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:10px;cursor:pointer" onclick="switchTab('stok')">
+      <span style="font-size:18px">⚠️</span>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:700;font-family:'Syne',sans-serif;color:var(--danger)" id="stok-alert-text">Ada barang stok habis!</div>
+        <div style="font-size:10px;color:var(--muted)">Tap untuk lihat detail stok</div>
+      </div>
+      <span style="font-size:11px;color:var(--muted)">›</span>
     </div>
     <div class="search-box">
       <span style="color:var(--muted)">🔍</span>
@@ -988,6 +1027,23 @@
     <!-- DAFTAR KASBON -->
     <div class="section-title">Daftar Kasbon</div>
     <div id="kasbon-list"><div style="text-align:center;padding:30px;color:var(--muted)">📒 Belum ada kasbon</div></div>
+  </div>
+
+  <!-- STOK -->
+  <div class="page" id="page-stok">
+    <div class="stats-grid">
+      <div class="stat-card" style="border-color:rgba(239,68,68,0.3)"><div class="stat-label">🔴 Stok Habis</div><div class="stat-value" style="color:var(--danger)" id="stok-habis-count">0</div></div>
+      <div class="stat-card" style="border-color:rgba(255,209,102,0.3)"><div class="stat-label">🟡 Hampir Habis (≤5)</div><div class="stat-value" style="color:var(--accent2)" id="stok-tipis-count">0</div></div>
+      <div class="stat-card"><div class="stat-label">🟢 Stok Aman</div><div class="stat-value" style="color:var(--green)" id="stok-aman-count">0</div></div>
+      <div class="stat-card"><div class="stat-label">📦 Total Barang</div><div class="stat-value accent" id="stok-total-count">0</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="activity-filter-btn active" id="sfbtn-semua" onclick="setStokFilter('semua')">Semua</button>
+      <button class="activity-filter-btn" id="sfbtn-habis" onclick="setStokFilter('habis')">🔴 Habis</button>
+      <button class="activity-filter-btn" id="sfbtn-tipis" onclick="setStokFilter('tipis')">🟡 Hampir Habis</button>
+      <button class="activity-filter-btn" id="sfbtn-aman" onclick="setStokFilter('aman')">🟢 Aman</button>
+    </div>
+    <div id="stok-list"></div>
   </div>
 
   <!-- KELOLA -->
@@ -1348,6 +1404,8 @@ async function initApp(cfg) {
       renderCategories();
       renderProducts();
       renderManage();
+      renderStok();
+      updateStokAlert();
     });
 
     // Listen transactions realtime
@@ -1681,12 +1739,13 @@ function requireLogin() {
 
 
 window.switchTab = function(tab) {
-  const tabs = ['kasir','riwayat','kasbon','history','notepad','kelola'];
+  const tabs = ['kasir','riwayat','kasbon','history','notepad','stok','kelola'];
   document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', tabs[i] === tab));
   document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+tab));
   if (tab === 'kasbon') renderKasbon();
   if (tab === 'history') renderActivityList();
   if (tab === 'notepad') renderNotes();
+  if (tab === 'stok') renderStok();
 };
 
 // ============ CATEGORIES ============
@@ -2425,6 +2484,112 @@ function matchesFilterDate(timeStr, page) {
            fd.getFullYear() === year;
   } catch(e) { return false; }
 }
+
+// ============ STOK MONITOR ============
+let stokFilter = 'semua';
+
+function getStokStatus(p) {
+  const s = p.stock !== undefined ? p.stock : 0;
+  if (s <= 0) return 'habis';
+  if (s <= 5) return 'tipis';
+  return 'aman';
+}
+
+function updateStokAlert() {
+  const habis = products.filter(p => (p.stock||0) <= 0);
+  const tipis  = products.filter(p => (p.stock||0) > 0 && (p.stock||0) <= 5);
+  const dot    = document.getElementById('stok-alert-dot');
+  const banner = document.getElementById('stok-alert-banner');
+  const text   = document.getElementById('stok-alert-text');
+
+  if (habis.length > 0) {
+    if (dot) { dot.style.display = 'inline-flex'; dot.style.background = 'var(--danger)'; }
+    if (banner) banner.style.display = 'flex';
+    if (text) text.textContent = `⚠ ${habis.length} barang stok HABIS${tipis.length>0?' · '+tipis.length+' hampir habis':''}`;
+  } else if (tipis.length > 0) {
+    if (dot) { dot.style.display = 'inline-flex'; dot.style.background = 'var(--accent2)'; }
+    if (banner) banner.style.display = 'flex';
+    if (text) text.textContent = `⚠ ${tipis.length} barang stok hampir habis (≤5)`;
+  } else {
+    if (dot) dot.style.display = 'none';
+    if (banner) banner.style.display = 'none';
+  }
+}
+
+window.setStokFilter = function(filter) {
+  stokFilter = filter;
+  document.querySelectorAll('[id^="sfbtn-"]').forEach(b => b.classList.remove('active'));
+  document.getElementById('sfbtn-'+filter)?.classList.add('active');
+  renderStok();
+};
+
+function renderStok() {
+  const habis  = products.filter(p => (p.stock||0) <= 0);
+  const tipis  = products.filter(p => (p.stock||0) > 0 && (p.stock||0) <= 5);
+  const aman   = products.filter(p => (p.stock||0) > 5);
+
+  // Update stats
+  const el1 = document.getElementById('stok-habis-count');
+  const el2 = document.getElementById('stok-tipis-count');
+  const el3 = document.getElementById('stok-aman-count');
+  const el4 = document.getElementById('stok-total-count');
+  if (el1) el1.textContent = habis.length;
+  if (el2) el2.textContent = tipis.length;
+  if (el3) el3.textContent = aman.length;
+  if (el4) el4.textContent = products.length;
+
+  const list = document.getElementById('stok-list');
+  if (!list) return;
+
+  let filtered = products;
+  if (stokFilter === 'habis') filtered = habis;
+  else if (stokFilter === 'tipis') filtered = tipis;
+  else if (stokFilter === 'aman') filtered = aman;
+
+  // Sort: habis dulu, lalu tipis, lalu aman
+  filtered = [...filtered].sort((a,b) => (a.stock||0) - (b.stock||0));
+
+  if (!filtered.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted)">📦 Tidak ada barang di kategori ini</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(p => {
+    const status = getStokStatus(p);
+    const stock  = p.stock !== undefined ? p.stock : 0;
+    const statusLabel = status === 'habis' ? '<span style="color:var(--danger);font-weight:800">HABIS</span>' :
+                        status === 'tipis' ? `<span style="color:var(--accent2);font-weight:700">Hampir habis</span>` :
+                        `<span style="color:var(--green)">Aman</span>`;
+    return `<div class="stok-item ${status}">
+      <div class="stok-item-emoji">${p.emoji}</div>
+      <div class="stok-item-info">
+        <div class="stok-item-name">${p.name}</div>
+        <div class="stok-item-cat">${p.cat} · ${statusLabel}${p.hargaBatang?` · 🚬 ${p.stokBatang||0} btg`:''}</div>
+      </div>
+      <div class="stok-item-num" style="color:${status==='habis'?'var(--danger)':status==='tipis'?'var(--accent2)':'var(--green)'}">${stock}</div>
+      ${currentRole==='admin' ? `<button class="stok-tambah-btn" onclick="tambahStok('${p.id}')">+ Stok</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+window.tambahStok = async function(id) {
+  if (currentRole !== 'admin') return;
+  const { db, doc, updateDoc, increment } = window._fb;
+  const p = products.find(x=>x.id===id);
+  if (!p) return;
+  const jumlah = prompt(`Tambah stok "${p.name}":\nStok sekarang: ${p.stock||0}`, '');
+  if (!jumlah) return;
+  const tambah = parseInt(jumlah);
+  if (isNaN(tambah) || tambah <= 0) { showToast('⚠ Jumlah tidak valid!', true); return; }
+  try {
+    const updates = { stock: increment(tambah) };
+    // Kalau ada batangan, tambah stok batang juga
+    if (p.isiBungkus) updates.stokBatang = increment(tambah * p.isiBungkus);
+    await updateDoc(doc(db,'products',id), updates);
+    logActivity('barang','📦','Tambah Stok: '+p.name, '+'+tambah+' bungkus', 0);
+    showToast(`✅ Stok ${p.name} +${tambah} → ${(p.stock||0)+tambah}`);
+  } catch(e) { showToast('❌ Gagal: '+e.message, true); }
+};
 
 // ============ KASBON ============
 let kasbonMode = 'barang'; // 'barang' | 'manual'
