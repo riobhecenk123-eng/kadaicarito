@@ -666,7 +666,7 @@ input,select,textarea,button{font-family:'Inter',sans-serif;}
       <input type="hidden" id="prodId">
       <div class="form-grid">
         <div class="fg"><label>Nama Produk *</label><input type="text" id="pNama" placeholder="Nama barang"></div>
-        <div class="fg"><label>Barcode *</label><div style="display:flex;gap:.4rem;"><input type="text" id="pBarcode" placeholder="Scan/ketik barcode" style="flex:1;padding:.72rem 1rem;background:var(--bg2);border:1px solid var(--border);border-radius:.5rem;color:var(--text);font-size:.9rem;outline:none;"><button class="btn btn-blue btn-sm" onclick="generateBarcode()">🎲 Auto</button></div></div>
+        <div class="fg"><label>Barcode *</label><div style="display:flex;gap:.4rem;"><input type="text" id="pBarcode" placeholder="Scan/ketik barcode" style="flex:1;padding:.72rem 1rem;background:var(--bg2);border:1px solid var(--border);border-radius:.5rem;color:var(--text);font-size:.9rem;outline:none;"><button class="btn btn-green btn-sm" onclick="openScannerFor('pBarcode','prodModal')">📷 Scan</button><button class="btn btn-blue btn-sm" onclick="generateBarcode()">🎲 Auto</button></div></div>
       </div>
       <div class="form-grid">
         <div class="fg"><label>Kategori</label><select id="pKat"></select></div>
@@ -729,11 +729,24 @@ input,select,textarea,button{font-family:'Inter',sans-serif;}
 <!-- Modal Scanner -->
 <div class="modal-overlay" id="scannerModal">
   <div class="modal" style="max-width:440px;" id="scannerModalBox">
-    <div class="modal-head"><h3>📷 Scan Barcode</h3><button class="mclose" onclick="closeScanner()">✕</button></div>
+    <div class="modal-head">
+      <div>
+        <h3>📷 Scan Barcode</h3>
+        <p id="scannerContext" style="font-size:.74rem;color:var(--text3);margin-top:.15rem;"></p>
+      </div>
+      <button class="mclose" onclick="closeScanner()">✕</button>
+    </div>
     <div class="modal-body">
-      <p style="font-size:.8rem;color:var(--text2);margin-bottom:1rem;">Arahkan kamera ke barcode produk</p>
+      <p style="font-size:.8rem;color:var(--text2);margin-bottom:.8rem;">Arahkan kamera ke barcode produk</p>
+      <!-- Manual input fallback -->
+      <div style="display:flex;gap:.5rem;margin-bottom:.8rem;">
+        <input type="text" id="manualBarcodeInput" placeholder="Atau ketik/scan manual lalu Enter..." 
+          style="flex:1;padding:.65rem 1rem;background:var(--bg2);border:1px solid var(--border2);border-radius:.5rem;color:var(--text);font-size:.9rem;outline:none;font-weight:600;letter-spacing:.05em;"
+          onkeydown="if(event.key==='Enter')submitManualScan()">
+        <button class="btn btn-blue btn-sm" onclick="submitManualScan()">✓ Isi</button>
+      </div>
       <div id="scanner-container"><div id="reader"></div></div>
-      <div id="scanResult" style="margin-top:1rem;padding:.7rem;background:var(--bg2);border:1px solid var(--border);border-radius:.5rem;font-size:.85rem;color:var(--text2);text-align:center;">Menunggu scan...</div>
+      <div id="scanResult" style="margin-top:.8rem;padding:.7rem;background:var(--bg2);border:1px solid var(--border);border-radius:.5rem;font-size:.85rem;color:var(--text2);text-align:center;">📷 Menunggu scan kamera...</div>
     </div>
   </div>
 </div>
@@ -758,7 +771,7 @@ input,select,textarea,button{font-family:'Inter',sans-serif;}
     <div class="modal-head"><h3>⚡ Tambah Produk Cepat</h3><button class="mclose" onclick="closeModal('addBarangCepatModal')">✕</button></div>
     <div class="modal-body">
       <div class="fg"><label>Nama Produk *</label><input type="text" id="cpNama" placeholder="Nama barang"></div>
-      <div class="fg"><label>Barcode</label><div style="display:flex;gap:.4rem;"><input type="text" id="cpBarcode" placeholder="Barcode" style="flex:1;padding:.72rem 1rem;background:var(--bg2);border:1px solid var(--border);border-radius:.5rem;color:var(--text);font-size:.9rem;outline:none;"><button class="btn btn-blue btn-sm" onclick="document.getElementById('cpBarcode').value=genBC()">🎲</button></div></div>
+      <div class="fg"><label>Barcode</label><div style="display:flex;gap:.4rem;"><input type="text" id="cpBarcode" placeholder="Barcode" style="flex:1;padding:.72rem 1rem;background:var(--bg2);border:1px solid var(--border);border-radius:.5rem;color:var(--text);font-size:.9rem;outline:none;"><button class="btn btn-green btn-sm" onclick="openScannerFor('cpBarcode','addBarangCepatModal')">📷 Scan</button><button class="btn btn-blue btn-sm" onclick="document.getElementById('cpBarcode').value=genBC()">🎲</button></div></div>
       <div class="form-grid">
         <div class="fg"><label>Harga Jual *</label><input type="number" id="cpHJual" placeholder="0" min="0"></div>
         <div class="fg"><label>Stok Awal</label><input type="number" id="cpStok" placeholder="0" min="0"></div>
